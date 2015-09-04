@@ -14,7 +14,7 @@ backwards compatility with earlier verions of IDL compilers.
 Please use the [RTI Community forums](http://community.rti.com) to
 discuss the plugin and provide feedback.
 
-## How to Install the IDL 4 Sparx Enterprise Architect Extension
+## Installing the IDL 4 Sparx Enterprise Architect Extension
 To install the extension. You may download an installer with the latest release from here:
 https://github.com/rticommunity/idl4-enterprise-architect/releases
 
