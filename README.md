@@ -8,7 +8,7 @@ system. It has been tested with Enterprise Architect version 10 and version 12.
 
 To install the extension. You may download an installer with the
 latest release from here:
-(https://github.com/rticommunity/idl4-enterprise-architect/releases)
+https://github.com/rticommunity/idl4-enterprise-architect/releases
 
 The IDL generated uses the syntax of the latest version of the [OMG IDL
 specification: IDL 4.0](http://www.omg.org/members/cgi-bin/doc?mars/15-04-01.pdf). Note
