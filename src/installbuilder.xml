@@ -1,0 +1,81 @@
+<project>
+    <shortName>idl4enterprisearchitect</shortName>
+    <fullName>IDL 4 Sparx Enterprise Architect Extension</fullName>
+    <version>1.0</version>
+    <installerFilename>idl4_enterprise_architect_extension-${project.version}.${platform_exec_suffix}</installerFilename>
+    <showFileUnpackingProgress>0</showFileUnpackingProgress>
+    <removeLogFile>1</removeLogFile>
+    <startMenuGroupName></startMenuGroupName>
+    <requestedExecutionLevel>highestAvailable</requestedExecutionLevel>
+    <disableSplashScreen>1</disableSplashScreen>
+    <leftImage>${leftImagePath}</leftImage>
+    <logoImage>${logoImagePath}</logoImage>logoImage>
+    <windowsSigningPkcs12File>${pkcs12File}</windowsSigningPkcs12File>
+    <windowsSigningPkcs12Password>${pkcs12Password}</windowsSigningPkcs12Password>
+    <windowsSigningTimestampServer>${timestampServer}</windowsSigningTimestampServer>
+    <windowsExecutableIcon>${executableIconPath}</windowsExecutableIcon>
+    <windowsUninstallerExecutableIcon>${uninstallerIconPath}</windowsUninstallerExecutableIcon>
+    
+    <componentList>
+	<component>
+	    <name>idl4_enterprise_architect</name>
+	    <folderList>
+		<folder>
+		    <description>installation_dir</description>
+		    <destination>${installdir}</destination>
+		    <distributionFileList>
+			<distributionFile>
+			    <origin>IDL4_EA_Extension/bin/Release/IDL4_EA_Extension.dll</origin>
+			</distributionFile>
+			<distributionFile>
+			    <origin>IDL4_EA_Extension/bin/Release/Interop.EA.dll</origin>
+			</distributionFile>
+			<distributionFile>
+			    <origin>../ExampleDataClasses.eap</origin>
+			</distributionFile>			
+		    </distributionFileList>
+		</folder>
+	    </folderList>
+	</component>
+    </componentList>
+    <readyToInstallActionList>
+	<autodetectDotNetFramework>
+	    <validDotNetVersionList>
+		<validDotNetVersion>
+		    <maxVersion></maxVersion>
+		    <minVersion>4.0</minVersion>
+		</validDotNetVersion>
+	    </validDotNetVersionList>
+	</autodetectDotNetFramework>
+    </readyToInstallActionList>
+    <postInstallationActionList>
+	<runProgram>
+	    <program>${env(windir)}\Microsoft.NET\Framework\v4.0.30319\RegAsm.exe</program>
+	    <programArguments>/codebase "${installdir}/IDL4_EA_Extension.dll"</programArguments>
+	    <onErrorActionList>
+		<throwError>
+		    <text>Assembly Registration Error</text>
+		</throwError>
+	    </onErrorActionList>
+	</runProgram>
+	<registrySet>
+	    <key>HKEY_CURRENT_USER\Software\Sparx Systems\EAAddins\IDL4</key>
+	    <type>REG_SZ</type>
+	    <value>IDL4_EA_Extension.Main</value>
+	</registrySet>
+    </postInstallationActionList>
+    <parameterList>
+	<directoryParameter>
+	    <name>installdir</name>
+	    <description>Installer.Parameter.installdir.description</description>
+	    <explanation>Installer.Parameter.installdir.explanation</explanation>
+	    <default>${platform_install_prefix}/idl4_ea_extension-${project.version}</default>
+	    <allowEmptyValue>0</allowEmptyValue>
+	    <ask>yes</ask>
+	    <cliOptionName>prefix</cliOptionName>
+	    <mustBeWritable>yes</mustBeWritable>
+	    <mustExist>0</mustExist>
+	    <width>30</width>
+	</directoryParameter>
+    </parameterList>
+</project>
