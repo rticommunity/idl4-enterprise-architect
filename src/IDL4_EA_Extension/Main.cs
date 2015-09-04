@@ -27,7 +27,6 @@ using System.Windows.Forms;
 using System.Drawing;
 using EA;
 
-
 namespace IDL4_EA_Extension
 {
     public class IDLGenAction : UserActionInterface
@@ -358,7 +357,7 @@ namespace IDL4_EA_Extension
         {
 
             foreach (EA.Attribute child in classElem.Attributes)
-            {
+            {            
                 String typeName = IDL_NormalizeMemberTypeName(child.Type);
 
                 // textForm.getTextBox().AppendText("    " + typeName + "  "
@@ -384,7 +383,7 @@ namespace IDL4_EA_Extension
                 }
                 else if (lower == 0 && upper == 1) // optional
                 {
-                    output.OutputText(depth, typeName + " " + child.Name + "; //@optional");
+                    output.OutputText(depth, typeName + " " + child.Name + "; //@Optional");
                 }
                 else // bounded sequence
                 {
@@ -392,12 +391,13 @@ namespace IDL4_EA_Extension
                         + child.Name + " ;");
                 }
 
-                string[] relevantAnnotationsNoValue = new string[] { "key", "optional" };
+                string[] relevantAnnotationsNoValue = new string[] { "Key", "Optional" };
                 foreach (AttributeTag tag in child.TaggedValues)
                 {
-                    if ( relevantAnnotationsNoValue.Contains(tag.Name.ToLower()) ) 
+                    String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+                    if ( relevantAnnotationsNoValue.Contains(normalizedAnnotation) ) 
                     {
-                        output.OutputText(" //@" + tag.Name.ToLower());
+                        output.OutputText(" //@" + normalizedAnnotation);
                     }
                 }
                 output.OutputTextLine();
@@ -514,12 +514,13 @@ namespace IDL4_EA_Extension
 
             output.OutputText(depth, "};");
 
-            string[] relevantAnnotationsOneValue = new string[] { "extensibility" };
+            string[] relevantAnnotationsOneValue = new string[] { "Extensibility" };
             foreach (TaggedValue tag in classElem.TaggedValues)
             {
-                if (relevantAnnotationsOneValue.Contains(tag.Name.ToLower()))
+                String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name.ToLower());
+                if ( relevantAnnotationsOneValue.Contains(normalizedAnnotation) )
                 {
-                    output.OutputText(depth, " //@" + tag.Name.ToLower() + "( " + tag.Value + ")");
+                    output.OutputText(depth, " //@" + normalizedAnnotation + " " + tag.Value);
                 }
             }
 
@@ -544,6 +545,10 @@ namespace IDL4_EA_Extension
         private static readonly string[] octetTypes     = new string[] { "octet", "byte", "int8", "int8_t", "uint8", "uint8_t" };
         private static readonly string[] floatTypes     = new string[] { "float", "float32", "number" };
         private static readonly string[] doubleTypes    = new string[] { "double", "float64" };
+
+        private static readonly string[][] primtiveTypeVariations = {
+            longlongTypes, ulonglongTypes, longTypes, ulongTypes, shortTypes, ushortTypes, octetTypes, floatTypes, doubleTypes };
+
         private static readonly Regex MultipleSpaces = new Regex(@" {2,}", RegexOptions.Compiled);
 
         /** Normalizes a type name converting it into a legal IDL4  type.
@@ -554,39 +559,41 @@ namespace IDL4_EA_Extension
         private static String IDL_NormalizeMemberTypeName(String typeName)
         {
             String normalizedType = MultipleSpaces.Replace(typeName, " ");
+            for (int typeFamily = 0; typeFamily < primtiveTypeVariations.GetLength(0); ++typeFamily)
+            {
+                if (primtiveTypeVariations[typeFamily].Contains(normalizedType))
+                {
+                    return primtiveTypeVariations[typeFamily][0];
+                }
+            }
 
-            if (longlongTypes.Contains(normalizedType))
+            return IDL_NormalizeUserDefinedClassifierName(normalizedType); 
+        }
+
+
+        private static readonly string[] keyAnnotation = new string[] { "Key", "key" };
+        private static readonly string[] optionalAnnotation = new string[] { "Optional", "optional" };
+        private static readonly string[] extensibilityAnnotation = new string[] { "Extensibility", "extensibility" };
+        private static readonly string[][] builtinAnnotationVariations = {
+            keyAnnotation, optionalAnnotation, extensibilityAnnotation };
+
+        /** Normalizes an annotation type name converting it into a legal IDL4 / Connext DDS annotation.
+         *  
+         * This function handles common variations of capitalization for the builtin annotations. For anything 
+         * non-built-in it just leaves it unchanged
+         */
+        private static String IDL_NormalizeAnnotationName(String annotationName)
+        {
+            String annotationNameLower = annotationName.ToLower();
+            for (int annotationType = 0; annotationType < builtinAnnotationVariations.GetLength(0); ++annotationType)
             {
-                return longlongTypes[0];
+                if ( builtinAnnotationVariations[annotationType].Contains(annotationNameLower) )
+                {
+                    return builtinAnnotationVariations[annotationType][0];
+                }
             }
-            else if (ulonglongTypes.Contains(normalizedType))
-            {
-                return ulonglongTypes[0];
-            }
-            else if (longTypes.Contains(normalizedType))
-            {
-                return longTypes[0];
-            }
-            else if (ulongTypes.Contains(normalizedType))
-            {
-                return ulongTypes[0];
-            }
-            else if (shortTypes.Contains(normalizedType))
-            {
-                return shortTypes[0];
-            }
-            else if (ushortTypes.Contains(normalizedType))
-            {
-                return ushortTypes[0];
-            }
-            else if (octetTypes.Contains(normalizedType))
-            {
-                return octetTypes[0];
-            }
-            else 
-            {
-                return IDL_NormalizeUserDefinedClassifierName(normalizedType);
-            }
+
+            return annotationName;
         }
 
         /**
