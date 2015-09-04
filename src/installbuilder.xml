@@ -1,8 +1,8 @@
 <project>
-    <shortName>idl4enterprisearchitect</shortName>
+    <shortName>idl4eaextension</shortName>
     <fullName>IDL 4 Sparx Enterprise Architect Extension</fullName>
     <version>1.0</version>
-    <installerFilename>idl4_enterprise_architect_extension-${project.version}.${platform_exec_suffix}</installerFilename>
+    <installerFilename>idl4_ea_extension-${project.version}.${platform_exec_suffix}</installerFilename>
     <showFileUnpackingProgress>0</showFileUnpackingProgress>
     <removeLogFile>1</removeLogFile>
     <startMenuGroupName></startMenuGroupName>
@@ -15,10 +15,10 @@
     <windowsSigningTimestampServer>${timestampServer}</windowsSigningTimestampServer>
     <windowsExecutableIcon>${executableIconPath}</windowsExecutableIcon>
     <windowsUninstallerExecutableIcon>${uninstallerIconPath}</windowsUninstallerExecutableIcon>
-    
+    <vendor>Real-Time Innovations</vendor>
     <componentList>
 	<component>
-	    <name>idl4_enterprise_architect</name>
+	    <name>idl4_ea_extension</name>
 	    <folderList>
 		<folder>
 		    <description>installation_dir</description>
