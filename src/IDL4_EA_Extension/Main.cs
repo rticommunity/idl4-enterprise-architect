@@ -45,7 +45,7 @@ namespace IDL4_EA_Extension
 
         public void OnCodegenAction()
         {
-            Main.GenerateIDL(_currentRepository, _currentOutput, _uncheckedElements);
+            Main.GenIDL(_currentRepository, _currentOutput, _uncheckedElements);
         }
 
         public void OnSaveAction(string filePath)
@@ -64,7 +64,7 @@ namespace IDL4_EA_Extension
         public void OnSelectAction(TreeNode treeNode)
         {
             // OnDebugAction("Selected Node: " + treeNode.FullPath);
-            Main.GenerateIDL_PreviewIDL(_currentRepository, _currentOutput, _uncheckedElements, treeNode.FullPath);
+            Main.GenIDL_Preview(_currentRepository, _currentOutput, _uncheckedElements, treeNode.FullPath);
         }
 
         public void OnCheckAction(TreeNode treeNode)
@@ -204,7 +204,7 @@ namespace IDL4_EA_Extension
 
             foreach (Element e in package.Elements)
             {
-                if (GenerateIDL_IsRelevantClass(e))
+                if (IsRelevantClass(e))
                 {
                     TreeNode classNode = new TreeNode(e.Name);
                     classNode.Checked = true;
@@ -222,7 +222,7 @@ namespace IDL4_EA_Extension
          * found.
          * 
          */
-        private static Object GenerateIDL_FindChild(EA.Collection collection, String childName)
+        private static Object EAUtil_FindChild(EA.Collection collection, String childName)
         {
             Object child = null;
             try {
@@ -233,12 +233,12 @@ namespace IDL4_EA_Extension
             return child;
         }
 
-        internal static void GenerateIDL_PreviewIDL(Repository repository, TextOutputInterface output, HashSet<string> uncheckedElem, String fullPath)
+        internal static void GenIDL_Preview(Repository repository, TextOutputInterface output, HashSet<string> uncheckedElem, String fullPath)
         {
             char[] delimiterChars = { '\\'};
             String[] elementNames = fullPath.Split(delimiterChars);
 
-            Package package = (Package)GenerateIDL_FindChild(repository.Models, elementNames[0]);
+            Package package = (Package)EAUtil_FindChild(repository.Models, elementNames[0]);
             //Package model = (Package)repository.Models.GetByName(elementNames[0]);
             if (package == null)
             {
@@ -252,12 +252,12 @@ namespace IDL4_EA_Extension
             {
                 String elemName = elementNames[i];
 
-                package = (Package)GenerateIDL_FindChild(parentPackage.Packages, elemName);
+                package = (Package)EAUtil_FindChild(parentPackage.Packages, elemName);
                 //package = (Package)parentPackage.Packages.GetByName(elemName);
 
                 if ((package == null) && (i == elementNames.Length - 1))
                 {
-                    classElem = (Element)GenerateIDL_FindChild(parentPackage.Elements, elemName);
+                    classElem = (Element)EAUtil_FindChild(parentPackage.Elements, elemName);
                 }
             }
 
@@ -272,25 +272,26 @@ namespace IDL4_EA_Extension
             {
                 output.OutputText("module " + IDL_NormalizeUserDefinedClassifierName(elementNames[i]) + " {  ");
             }
+            output.OutputTextLine();
             if (package != null)
             {
                 // display package
                 // output.OutputTextLine("Displaying Package: " + package.Name);
-                Main.GenerateIDL_Module(repository, package, output, 0, null, null);
+                Main.GenIDL_Module(repository, package, output, elementNames.Length - 1, null, null);
             }
             else if (classElem != null)
             {
                 // display class
                 // output.OutputTextLine("Displaying Class: " + classElem.Name);
-                Main.GenerateIDL_Class(repository, classElem, output, 1, null, "");
+                Main.GenIDL_Class(repository, classElem, output, elementNames.Length - 1, null, "");
             }
             for (int i = 0; i < elementNames.Length - 1; ++i)
             {
-                output.OutputText("};  ");
+                output.OutputText("};");
             }
         }
 
-        internal static void GenerateIDL(Repository repository, TextOutputInterface output, HashSet<String> uncheckedElem)
+        internal static void GenIDL(Repository repository, TextOutputInterface output, HashSet<String> uncheckedElem)
         {
             output.Clear();
             foreach (Package model in repository.Models)
@@ -303,7 +304,7 @@ namespace IDL4_EA_Extension
 
                 foreach (Package package in model.Packages)
                 {
-                    GenerateIDL_Module(repository, package, output, 0, uncheckedElem, model.Name);
+                    GenIDL_Module(repository, package, output, 0, uncheckedElem, model.Name);
                 }
             }
         }
@@ -312,13 +313,13 @@ namespace IDL4_EA_Extension
          * 
          *  This function is recursive. It generates IDl for all the nested UML packages and classes
          */
-        private static void GenerateIDL_Module(Repository repository, Package package, 
+        private static void GenIDL_Module(Repository repository, Package package, 
             TextOutputInterface output, int depth, 
             HashSet<String> uncheckedElem, String pathToElem)
         {
             // if unckecked skip this model
-            String packageFullName = GenerateIDL_FullElementName(pathToElem, package.Name);
-            if (GenerateIDL_IsElementUnchecked(uncheckedElem, packageFullName)) 
+            String packageFullName = IDL_FullElementName(pathToElem, package.Name);
+            if (IsElementUnchecked(uncheckedElem, packageFullName)) 
             {   
                 return;
             }
@@ -330,15 +331,12 @@ namespace IDL4_EA_Extension
             // So we iterate separately over the nested packages and the nested classes
             foreach (Element e in package.Elements)
             {
-                if (GenerateIDL_IsRelevantClass(e) )
-                {
-                    GenerateIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
-                }
+                GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
             }
             
             foreach (Package p in package.Packages)
             {
-                GenerateIDL_Module(repository, p, output, depth + 1, uncheckedElem, packageFullName);
+                GenIDL_Module(repository, p, output, depth + 1, uncheckedElem, packageFullName);
             }
 
             output.OutputTextLine(depth, "};");
@@ -356,7 +354,7 @@ namespace IDL4_EA_Extension
          *    LowerBound  < UpperBound  (other values)    ==>  Bounded Sequence
          *    LowerBound == UpperBound  (other values)    == > Array
          */
-        private static void GenerateIDL_Attributes(Repository repository, Element classElem, TextOutputInterface output, int depth)
+        private static void GenIDL_Attributes(Repository repository, Element classElem, TextOutputInterface output, int depth)
         {
 
             foreach (EA.Attribute child in classElem.Attributes)
@@ -406,7 +404,7 @@ namespace IDL4_EA_Extension
             }
         }
 
-        private static String GenerateIDL_GetReferencedTypeToInclude(Repository repository, Element classElem, EA.Connector conn )
+        private static String GenIDL_GetReferencedTypeToInclude(Repository repository, Element classElem, EA.Connector conn )
         {
             string[] relevantConnectorTypes = new string[] { "Aggregation", "Association" };
             if (!relevantConnectorTypes.Contains(conn.Type))
@@ -446,11 +444,11 @@ namespace IDL4_EA_Extension
             return null;
         }
 
-        private static void GenerateIDL_Relations(Repository repository, Element classElem, TextOutputInterface output, int depth)
+        private static void GenIDL_Relations(Repository repository, Element classElem, TextOutputInterface output, int depth)
         {
             foreach (EA.Connector conn in classElem.Connectors)
             {
-                String referencedType = GenerateIDL_GetReferencedTypeToInclude(repository, classElem, conn);
+                String referencedType = GenIDL_GetReferencedTypeToInclude(repository, classElem, conn);
                 // textForm.getTextBox().AppendText("    type: " + conn.Type  + Environment.NewLine);
 
                 if (referencedType != null)
@@ -461,34 +459,40 @@ namespace IDL4_EA_Extension
             }
         }
 
-        private static String GenerateIDL_FullElementName(String elementPath, String elementName)
+        private static String IDL_FullElementName(String elementPath, String elementName)
         {
             return elementPath + "\\" + elementName;
         }
 
-        private static bool GenerateIDL_IsElementUnchecked(HashSet<String> uncheckedElem, String elementFullName) 
+        private static bool IsElementUnchecked(HashSet<String> uncheckedElem, String elementFullName) 
         {
             return (uncheckedElem != null) && (uncheckedElem.Contains(elementFullName));
         }
 
-        private static bool GenerateIDL_IsElementUnchecked(HashSet<String> uncheckedElem, String elementPath, String elementName)
+        private static bool IsElementUnchecked(HashSet<String> uncheckedElem, String elementPath, String elementName)
         {
             if (uncheckedElem == null)
             {
                 return false;
             }
-            return uncheckedElem.Contains(GenerateIDL_FullElementName(elementPath, elementName));
+            return uncheckedElem.Contains(IDL_FullElementName(elementPath, elementName));
         }
     
-        private static void GenerateIDL_Class(Repository repository, Element classElem,
+        private static void GenIDL_Class(Repository repository, Element classElem,
             TextOutputInterface output, int depth, 
             HashSet<String> uncheckedElem, String elementPath)
         {
             // If unchecked, skip class
-            if (GenerateIDL_IsElementUnchecked(uncheckedElem, elementPath, classElem.Name))
+            if (IsElementUnchecked(uncheckedElem, elementPath, classElem.Name))
             {  
                 return;
             }
+            // Check that the class is relevant meaning for example that it has members
+            if (!IsRelevantClass(classElem))
+            {
+                return;
+            }
+                
 
             String baseClassName = null;
             if (classElem.BaseClasses.Count > 0)
@@ -505,8 +509,8 @@ namespace IDL4_EA_Extension
             }
             output.OutputTextLine(" {");
 
-            GenerateIDL_Attributes(repository, classElem, output, depth+1);
-            GenerateIDL_Relations(repository, classElem, output, depth+1);
+            GenIDL_Attributes(repository, classElem, output, depth+1);
+            GenIDL_Relations(repository, classElem, output, depth+1);
 
             output.OutputText(depth, "};");
 
@@ -586,38 +590,13 @@ namespace IDL4_EA_Extension
         }
 
         /**
-         * Returns all the model elements in the package for which we need to generate
-         * Connnext data-classes (IDL) code 
-         * 
-         * Currently the determination of whether to select a model element for IDL
-         * code generation os based on having a "pure data-class" that is a class with no
-         * operations.
-         */
-        private static List<Element> GetConnextCodegenClasses(Package package)
-        {
-            List<Element> classList = new List<Element>();
-            foreach (Element e in package.Elements)
-            {
-                if (GenerateIDL_IsRelevantClass(e) )
-                {
-                    classList.Add(e);
-                }
-            }
-            foreach (Package p in package.Packages)
-            {
-                classList.AddRange(GetConnextCodegenClasses(p));
-            }
-            return classList;
-        }
-
-
-        /**
          * Determines whether this is a model element relevant to Connext DDS and we need to 
          * generate code associated with the model element.
          */
-        private static bool GenerateIDL_IsRelevantClass(Element e)
+        private static bool IsRelevantClass(Element e)
         {
-            return (e.Type == "Class") && (e.Methods.Count == 0);
+            return (e.Type == "Class") &&
+                ((e.Attributes.Count > 0) || (e.Connectors.Count > 0));
         }
 
     }
