@@ -15,7 +15,7 @@
     <windowsSigningTimestampServer>${timestampServer}</windowsSigningTimestampServer>
     <windowsExecutableIcon>${executableIconPath}</windowsExecutableIcon>
     <windowsUninstallerExecutableIcon>${uninstallerIconPath}</windowsUninstallerExecutableIcon>
-    <vendor>Real-Time Innovations</vendor>
+    <vendor>Real-Time Innovations, Inc.</vendor>
     <componentList>
 	<component>
 	    <name>idl4_ea_extension</name>
