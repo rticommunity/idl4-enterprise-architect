@@ -16,7 +16,7 @@ that the syntax of annotations is not fully compliant with
 IDL 4.0. Rather it uses the OMG DDS-XTYPES syntax that provides
 backwards compatility with earlier verions of IDL compilers.
 
-Please use the [RTI Community forums[(http://community.rti.com) to
+Please use the [RTI Community forums](http://community.rti.com) to
 discuss the plugin and provide feedback.
 
 
