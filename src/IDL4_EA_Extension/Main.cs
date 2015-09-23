@@ -390,8 +390,16 @@ namespace IDL4_EA_Extension
                     output.OutputText(depth, "sequence<" + typeName + "," + child.UpperBound + "> "
                         + child.Name + " ;");
                 }
-
-                string[] relevantAnnotationsNoValue = new string[] { "Key", "Optional" };
+                
+                string[] relevantAnnotationsNoValue = new string[] {
+                    "Key", "must_understand",
+                    "autoid", "Optional",
+                    "external", "nested",
+                    "oneway", "ami"
+                };
+                string[] relevantAnnotationsWithValue = new string[] {
+                    "ID", "Value"
+                };
                 foreach (AttributeTag tag in child.TaggedValues)
                 {
                     String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
@@ -399,7 +407,12 @@ namespace IDL4_EA_Extension
                     {
                         output.OutputText(" //@" + normalizedAnnotation);
                     }
+                    else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
+                    {
+                        output.OutputText(" //@" + normalizedAnnotation + " " + tag.Value);
+                    }
                 }
+
                 output.OutputTextLine();
             }
         }
@@ -514,11 +527,24 @@ namespace IDL4_EA_Extension
 
             output.OutputText(depth, "};");
 
-            string[] relevantAnnotationsOneValue = new string[] { "Extensibility" };
+
+            string[] relevantAnnotationsNoValue = new string[] { 
+                "autoid", 
+                "final", "mutable", 
+                "nested",
+                "service"
+            };
+            string[] relevantAnnotationsWithValue = new string[] { 
+                "Extensibility", "verbatim"
+            };
             foreach (TaggedValue tag in classElem.TaggedValues)
             {
                 String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name.ToLower());
-                if ( relevantAnnotationsOneValue.Contains(normalizedAnnotation) )
+                if (relevantAnnotationsNoValue.Contains(normalizedAnnotation))
+                {
+                    output.OutputText(depth, " //@" + normalizedAnnotation);
+                }
+                else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
                 {
                     output.OutputText(depth, " //@" + normalizedAnnotation + " " + tag.Value);
                 }
@@ -572,10 +598,44 @@ namespace IDL4_EA_Extension
 
 
         private static readonly string[] keyAnnotation = new string[] { "Key", "key" };
+        private static readonly string[] mustUnderstandAnnotation = new string[] { "must_understand" };
+
+        private static readonly string[] idAnnotation = new string[] { "ID", "id" };
+        private static readonly string[] autoidAnnotation = new string[] { "autoid" };
         private static readonly string[] optionalAnnotation = new string[] { "Optional", "optional" };
+        private static readonly string[] valueAnnotation = new string[] { "value" };
+
         private static readonly string[] extensibilityAnnotation = new string[] { "Extensibility", "extensibility" };
+        private static readonly string[] finalAnnotation = new string[] { "final" };
+        private static readonly string[] mutableAnnotation = new string[] { "mutable" };
+
+        private static readonly string[] defaultAnnotation = new string[] { "default" };
+        private static readonly string[] rangeAnnotation = new string[] { "range" };
+        private static readonly string[] minAnnotation = new string[] { "min" };
+        private static readonly string[] maxAnnotation = new string[] { "max" };
+        private static readonly string[] unitAnnotation = new string[] { "unit" };
+
+        private static readonly string[] bitBoundAnnotation = new string[] { "bit_bound" };
+        private static readonly string[] externalAnnotation = new string[] { "external" };
+        private static readonly string[] nestedAnnotation = new string[] { "nested" };
+
+        private static readonly string[] verbatimAnnotation = new string[] { "verbatim" };
+
+        private static readonly string[] serviceAnnotation = new string[] { "service" };
+        private static readonly string[] onewayAnnotation = new string[] { "oneway" };
+        private static readonly string[] amiAnnotation = new string[]   { "ami" };
+
+
+
         private static readonly string[][] builtinAnnotationVariations = {
-            keyAnnotation, optionalAnnotation, extensibilityAnnotation };
+            keyAnnotation, mustUnderstandAnnotation,
+            idAnnotation, autoidAnnotation, optionalAnnotation, valueAnnotation,
+            extensibilityAnnotation, finalAnnotation, mutableAnnotation,
+            defaultAnnotation, rangeAnnotation, minAnnotation, maxAnnotation, unitAnnotation,
+            bitBoundAnnotation, externalAnnotation, nestedAnnotation,
+            verbatimAnnotation,
+            serviceAnnotation, onewayAnnotation, amiAnnotation
+        };
 
         /** Normalizes an annotation type name converting it into a legal IDL4 / Connext DDS annotation.
          *  
