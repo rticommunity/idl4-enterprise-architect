@@ -282,7 +282,14 @@ namespace IDL4_EA_Extension
             {
                 // display class
                 // output.OutputTextLine("Displaying Class: " + classElem.Name);
-                Main.GenIDL_Class(repository, classElem, output, elementNames.Length - 1, null, "");
+                if (IsElementEnum(classElem))
+                {
+                    Main.GenIDL_Enum(repository, classElem, output, elementNames.Length - 1, null, "");
+                }
+                else
+                {
+                    Main.GenIDL_Class(repository, classElem, output, elementNames.Length - 1, null, "");
+                }
             }
             for (int i = 0; i < elementNames.Length - 1; ++i)
             {
@@ -330,7 +337,13 @@ namespace IDL4_EA_Extension
             // So we iterate separately over the nested packages and the nested classes
             foreach (Element e in package.Elements)
             {
-                GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
+                if (IsElementEnum(e))
+                {
+                    GenIDL_Enum(repository, e, output, depth + 1, uncheckedElem, packageFullName);
+                }
+                else {
+                    GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
+                }
             }
             
             foreach (Package p in package.Packages)
@@ -490,7 +503,25 @@ namespace IDL4_EA_Extension
             }
             return uncheckedElem.Contains(IDL_FullElementName(elementPath, elementName));
         }
-    
+
+        private static bool IsElementEnum(Element elem)
+        {
+            // TODO
+            return elem.Stereotype.Equals("enumeration");
+        }
+
+        private static void GenIDL_Enum(Repository repository, Element enumElem,
+             TextOutputInterface output, int depth,
+             HashSet<String> uncheckedElem, String elementPath)
+        {
+            output.OutputTextLine(depth,
+                "enum " + IDL_NormalizeUserDefinedClassifierName(enumElem.Name) + " {");
+           
+            GenIDL_Attributes(repository, enumElem, output, depth + 1);
+
+            output.OutputTextLine(depth, "};");
+        }
+
         private static void GenIDL_Class(Repository repository, Element classElem,
             TextOutputInterface output, int depth, 
             HashSet<String> uncheckedElem, String elementPath)
