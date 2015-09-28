@@ -1,5 +1,5 @@
 /*********************************************************************************************
-(c) 2005-2015 Copyright, Real-Time Innovations, Inc.  All rights reserved.    	                             
+(c) 2005-2015 Copyright, Real-Time Innovations, Inc.  All rights reserved. 
 RTI grants Licensee a license to use, modify, compile, and create derivative works 
 of the Software.  Licensee has the right to distribute object form only for use with RTI 
 products.  The Software is provided “as is”, with no warranty of any type, including 
@@ -297,9 +297,28 @@ namespace IDL4_EA_Extension
             }
         }
 
+        /** Outputs UML "primitive" types that are not primitive in IDL
+         */
+        private static void GenIDL_PrebuiltUMLTypes(TextOutputInterface output)
+        {
+            String builtinTypes = 
+                "struct dateTime { long date; long time; };";
+            output.OutputTextLine(builtinTypes);
+        }
+
         internal static void GenIDL(Repository repository, TextOutputInterface output, HashSet<String> uncheckedElem)
         {
             output.Clear();
+
+            output.OutputTextLine("/* ******************************************************************* */");
+            output.OutputTextLine("/* These are UML builtin primitive types that are not primitive in IDL */");
+            GenIDL_PrebuiltUMLTypes(output);
+            output.OutputTextLine("");
+
+            output.OutputTextLine("/* ******************************************************************* */");
+            output.OutputTextLine("/* These are Types defined in the model */");
+            output.OutputTextLine("");
+
             foreach (Package model in repository.Models)
             {
                 if (uncheckedElem.Contains(model.Name) )
@@ -330,7 +349,13 @@ namespace IDL4_EA_Extension
                 return;
             }
 
-            output.OutputTextLine(depth, "module " + IDL_NormalizeUserDefinedClassifierName(package.Name) + " {");
+            String moduleName = IDL_NormalizeUserDefinedClassifierName(package.Name);
+            output.OutputTextLine(depth, "module " + moduleName + " {");
+
+            //TODO: Temporary solution. To avoid problems with empty modules without analyzing the module
+            //      first we always emit some declaration in the module
+            output.OutputTextLine(depth + 1, "enum DUMMY_AvoidEmptyModule { DUMMY_DoNotUse };");
+
 
             
             // Experimentally I determined that the package.Elements collection does not contain sub-packages
@@ -351,9 +376,61 @@ namespace IDL4_EA_Extension
                 GenIDL_Module(repository, p, output, depth + 1, uncheckedElem, packageFullName);
             }
 
-            output.OutputTextLine(depth, "};");
+            output.OutputTextLine(depth, "}; /* end module " + moduleName + " */");
         }
 
+
+        /* Generate the IDL for an enum literal.
+         */
+        private static void GenIDL_EnumLiterals(Repository repository, Element enumElem, TextOutputInterface output, int depth)
+        {
+            short childCount = enumElem.Attributes.Count;
+            for (short i = 0 ; i < childCount; ++i ) 
+            {
+                EA.Attribute child = enumElem.Attributes.GetAt(i);
+                String typeName = IDL_NormalizeMemberTypeName(child.Type);
+                if (i < childCount - 1)
+                {
+                    output.OutputText(depth, typeName + "  " + child.Name + ",");
+                }
+                else
+                {
+                    output.OutputText(depth, typeName + "  " + child.Name);
+                }
+
+                string[] relevantAnnotationsWithValue = new string[] {
+                    "ID", "Value"
+                };
+                foreach (AttributeTag tag in child.TaggedValues)
+                {
+                    String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+                    if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
+                    {
+                        output.OutputText(" //@" + normalizedAnnotation + " " + tag.Value);
+                    }
+                }
+
+                output.OutputTextLine();
+            }
+        }
+
+        private static String GenIDL_GetFullPackageName(Repository repository, Element elem)
+        {
+            String packageName = "";
+            int packageID = elem.PackageID;
+            Package package = repository.GetPackageByID(packageID);
+            int parentPackageID = package.ParentID;
+
+            while (parentPackageID != 0)
+            {
+                packageName = IDL_NormalizeUserDefinedClassifierName(package.Name) + "::" + packageName;
+                packageID = parentPackageID;
+                package = repository.GetPackageByID(packageID);
+                parentPackageID = package.ParentID;
+            }
+
+            return packageName;
+        }
 
         /* Generate the IDL for an attribute.
          * The atribute can appear by itself, a sequence, or an array.
@@ -368,13 +445,33 @@ namespace IDL4_EA_Extension
          */
         private static void GenIDL_Attributes(Repository repository, Element classElem, TextOutputInterface output, int depth)
         {
+            //TODO: Empty classes are not legal IDL. So if class is empty add some dummy element
+            if (classElem.Attributes.Count == 0)
+            {
+                output.OutputTextLine(depth, "octet __dummy_prevent_emty_struct;");
+                return;
+            }
+
 
             foreach (EA.Attribute child in classElem.Attributes)
-            {            
-                String typeName = IDL_NormalizeMemberTypeName(child.Type);
+            {
+                // This does not get the fully qualified type name. We need that to fully resolve
+                // the type in the IDL...
+                String typeName;
+                
+                /* This code was trying to get the fully-qualified name but it throws an exception
+                 */
+                if ( child.ClassifierID == 0 ) {
+                    typeName = IDL_NormalizeMemberTypeName(child.Type);
+                }
+                else {
+                    Element attributeType = repository.GetElementByID(child.ClassifierID);
+                    Package attributePackage = repository.GetPackageByID(attributeType.PackageID);
+                    typeName = GenIDL_GetFullPackageName(repository, attributeType) 
+                        + IDL_NormalizeMemberTypeName(attributeType.Name);
+                }
 
-                // textForm.getTextBox().AppendText("    " + typeName + "  "
-                //       + child.Name + " lower: " + child.LowerBound + "  upper: " + child.UpperBound + Environment.NewLine);
+                // output.OutputText(depth, "/* child.ClassifierID = " + child.ClassifierID + " */");
 
                 int lower  = Convert.ToInt32(child.LowerBound);
                 int upper = Convert.ToInt32(child.UpperBound);
@@ -516,9 +613,9 @@ namespace IDL4_EA_Extension
         {
             output.OutputTextLine(depth,
                 "enum " + IDL_NormalizeUserDefinedClassifierName(enumElem.Name) + " {");
-           
-            GenIDL_Attributes(repository, enumElem, output, depth + 1);
 
+            //output.OutputTextLine(depth, "/* elementID = " + enumElem.ElementID + " */");
+            GenIDL_EnumLiterals(repository, enumElem, output, depth + 1);
             output.OutputTextLine(depth, "};");
         }
 
@@ -543,15 +640,18 @@ namespace IDL4_EA_Extension
             {
                 Object obj = classElem.BaseClasses.GetAt(0);
                 Element elem = (Element)obj;
-                baseClassName = elem.Name;
+                baseClassName = GenIDL_GetFullPackageName(repository, elem) 
+                    + IDL_NormalizeUserDefinedClassifierName(elem.Name);
             }
 
             output.OutputText(depth, "struct " + IDL_NormalizeUserDefinedClassifierName(classElem.Name));
             if (baseClassName != null)
             {
-                output.OutputText(" : " + IDL_NormalizeUserDefinedClassifierName(baseClassName));
+                output.OutputText(" : " + baseClassName);
             }
             output.OutputTextLine(" {");
+            // output.OutputTextLine(depth, "/* elementID = " + classElem.ElementID + " */");
+
 
             GenIDL_Attributes(repository, classElem, output, depth+1);
             GenIDL_Relations(repository, classElem, output, depth+1);
@@ -585,12 +685,18 @@ namespace IDL4_EA_Extension
         }
 
 
+        private static char[] invalidTypenameChars = new char[] { ' ', '-', '&', '(', ')' };
+
         /**  Normalizes a user-defined UML classifier (class / package) name into a legal IDL class/module name
          * 
          */
         public static String IDL_NormalizeUserDefinedClassifierName(String classifierName)
         {
-            return classifierName.Replace(" ", "_");
+            for (int index = 0; index < invalidTypenameChars.GetLength(0); ++index) {
+                classifierName = classifierName.Replace(invalidTypenameChars[index], '_');
+            }
+
+            return classifierName;
         }
 
         private static readonly string[] longlongTypes  = new string[] { "long long", "int64", "int64_t" };
