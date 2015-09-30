@@ -24,6 +24,9 @@ namespace IDL4_EA_Extension
         void OutputTextLine();
 
         void Clear();
+        int GetCurrentPosition();
+        void ClearPositionRange(int beginPosition, int endPosition);
+
         void SaveToFile(String filePath, String[] preambleLines);
     }
 }

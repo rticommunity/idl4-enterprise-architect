@@ -241,7 +241,6 @@ namespace IDL4_EA_Extension
             String[] elementNames = fullPath.Split(delimiterChars);
 
             Package package = (Package)EAUtil_FindChild(repository.Models, elementNames[0]);
-            //Package model = (Package)repository.Models.GetByName(elementNames[0]);
             if (package == null)
             {
                 output.OutputTextLine("// Could not find selected package: \"" + fullPath + "\" in the model");
@@ -255,7 +254,6 @@ namespace IDL4_EA_Extension
                 String elemName = elementNames[i];
 
                 package = (Package)EAUtil_FindChild(parentPackage.Packages, elemName);
-                //package = (Package)parentPackage.Packages.GetByName(elemName);
 
                 if ((package == null) && (i == elementNames.Length - 1))
                 {
@@ -280,9 +278,12 @@ namespace IDL4_EA_Extension
                 // display package
                 // output.OutputTextLine("Displaying Package: " + package.Name);
                 Dictionary<long, bool> moduleRelevance = new Dictionary<long, bool>();
+                HashSet<long> dummyCompletedClases = new HashSet<long>();
                 UpdateModuleRelevance(moduleRelevance, package, output);
-                Main.GenIDL_ModuleFirstPass(repository, package, output, elementNames.Length - 1, null, null, moduleRelevance);
-                Main.GenIDL_ModuleSecondPass(repository, package, output, elementNames.Length - 1, null, null, moduleRelevance, null);
+                Main.GenIDL_ModuleFirstPass(repository, package, output, elementNames.Length - 1, null, null, moduleRelevance, null);
+                int generatedItemCount;
+                Main.GenIDL_ModuleSecondPass(repository, package, output, elementNames.Length - 1, null,
+                    out generatedItemCount, null, moduleRelevance, dummyCompletedClases);
             }
             else if (classElem != null)
             {
@@ -354,18 +355,17 @@ namespace IDL4_EA_Extension
                 output.OutputTextLine("/* -----  Model: \"" + model.Name + "\"  ----- */");
                 foreach (Package package in model.Packages)
                 {
-                    GenIDL_ModuleFirstPass(repository, package, output, 0, model.Name, uncheckedElem, moduleRelevance);
+                    GenIDL_ModuleFirstPass(repository, package, output, 0, model.Name, uncheckedElem, moduleRelevance, completedClasses);
                 }
             }
 
-            bool generationComplete = false;
-            int iterationCount = 0;
-            int maxPasses = 3;
+            int notGeneratedClassCount = -1;        // Does not matter as long as it is < 0
+            int previousNotGeneratedClassCount;
 
-            while (!generationComplete && (iterationCount < maxPasses))
-            {
-                generationComplete = true;
-                ++iterationCount;
+            do {
+                previousNotGeneratedClassCount = notGeneratedClassCount;
+                notGeneratedClassCount = 0;
+
                 foreach (Package model in repository.Models)
                 {
                     if (uncheckedElem.Contains(model.Name))
@@ -376,19 +376,74 @@ namespace IDL4_EA_Extension
 
                     foreach (Package package in model.Packages)
                     {
-                        bool pkgGenerationComplete = GenIDL_ModuleSecondPass(repository, package, output, 0, model.Name, uncheckedElem, moduleRelevance, completedClasses);
-                        generationComplete = generationComplete && pkgGenerationComplete;
+                        int generatedItemCount;
+                        notGeneratedClassCount += GenIDL_ModuleSecondPass(repository, package, output, 0, model.Name,
+                            out generatedItemCount, uncheckedElem, moduleRelevance, completedClasses);
                     }
                 }
-                if (generationComplete)
+            }
+            while ( (notGeneratedClassCount > 0) && (notGeneratedClassCount != previousNotGeneratedClassCount) ) ;
+
+
+            if (notGeneratedClassCount > 0 )
+            {
+                output.OutputTextLine("/* WARNING: " + notGeneratedClassCount + " classes could not be generated due to dependencies */");
+                GenIDL_ReportUngeneratedClasses(repository, output, 0, uncheckedElem, moduleRelevance, completedClasses);         
+            }
+        }
+
+
+        private static void GenIDL_ReportUngeneratedClasses(Repository repository,
+            TextOutputInterface output, int depth,
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
+        {
+            foreach (Package model in repository.Models)
+            {
+                if (uncheckedElem.Contains(model.Name))
                 {
-                    break;
+                    // if unckecked skip this model
+                    continue;
+                }
+
+                foreach (Package package in model.Packages)
+                {
+                    GenIDL_ReportUngeneratedClasses(repository, package, output, 0, model.Name, uncheckedElem, relevantModules, completedClasses);
+                }
+            }
+        }
+
+        private static void GenIDL_ReportUngeneratedClasses(Repository repository, Package package,
+            TextOutputInterface output, int depth, String pathToElem,
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
+        {
+            // if unckecked skip this model
+            String packageFullName = IDL_FullElementName(pathToElem, package.Name);
+            if (IsElementUnchecked(uncheckedElem, packageFullName))
+            {
+                return;
+            }
+
+            if (!IsModuleRelevant(relevantModules, package, output))
+            {
+                return;
+            }
+
+            String moduleName = IDL_NormalizeUserDefinedClassifierName(package.Name);
+            foreach (Element e in package.Elements)
+            {
+                if (!IsElementEnum(e))
+                {
+                    if ( ( completedClasses.Contains(e.ElementID) == false ) 
+                        && GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null) )
+                    {
+                        output.OutputTextLine("// Could not generate: class: \"" + e.Name + "\" in package: \"" + packageFullName + "\"");
+                    }
                 }
             }
 
-            if ( generationComplete == false )
+            foreach (Package p in package.Packages)
             {
-                output.OutputTextLine("/* WARNING: Some classes could not be generated due to dependencies */");
+                GenIDL_ReportUngeneratedClasses(repository, p, output, depth + 1, packageFullName, uncheckedElem, relevantModules, completedClasses);
             }
         }
 
@@ -412,7 +467,7 @@ namespace IDL4_EA_Extension
          */
         private static void GenIDL_ModuleFirstPass(Repository repository, Package package,
             TextOutputInterface output, int depth, String pathToElem,
-            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules)
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
         {
             // if unckecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
@@ -436,6 +491,7 @@ namespace IDL4_EA_Extension
                 if (IsElementEnum(e))
                 {
                     GenIDL_Enum(repository, e, output, depth + 1, uncheckedElem, packageFullName);
+                    completedClasses.Add(e.ElementID);
                     emptyModuleContent = false;
                 }
                 else
@@ -450,7 +506,7 @@ namespace IDL4_EA_Extension
 
             foreach (Package p in package.Packages)
             {
-                GenIDL_ModuleFirstPass(repository, p, output, depth + 1, packageFullName, uncheckedElem, relevantModules);
+                GenIDL_ModuleFirstPass(repository, p, output, depth + 1, packageFullName, uncheckedElem, relevantModules, completedClasses);
                 emptyModuleContent = false;
             }
 
@@ -466,37 +522,51 @@ namespace IDL4_EA_Extension
          * 
          *  This function is recursive. It generates IDl for all the nested UML packages and classes
          *  
-         * Returns true if generation of all classes is complete. Otherwise false.
-         * If generation is incompete (i.e. when it returns false) the function should be called
-         * again an again (in successive passes) to complete the generation of classes that were ommitted 
-         * on the previous pass.
+         * Returns the number of classes for which IDL could not be generated due to dependencies.
          * 
-         * Each pass generates the classes for with GenIDL_DependenciesAlreadyGenerated() which means the
-         * classes that have any dependent classes already generated.
+         * The IDL for a class "C" can only be generated if we have already generated the IDL for all
+         * the classes "C" depends on. This is detemined by the return of the function:
+         * GenIDL_DependenciesAlreadyGenerated()
          * 
-         * If no progress is made on successive calls it indicates a dependency cycle which must be broken
-         * by making one of the dependencies a "@Shared" reference
+         * A return of "0" indicates there were no revevant classes for which the IDL could not be 
+         * generated. That is, the IDL generation is complete.
+         * 
+         * A return >0 indicates IDL generation is not complete. In this case the GenIDL_ModuleSecondPass()
+         * could be called again to generate additional classes that may have had their dependendant
+         * clases generated in the previous pass. 
+         * 
+         * If two succesive calls to GenIDL_ModuleSecondPass() return the same value. That is, no progress
+         * was made in on pass, this indicates there is a cyclic dependency that cannot be resolved. 
+         * In this case the strategy is to report the error so the user can break the dependency by, for example,
+         * declaring on of the dependencies in the link as "@Shared"
          */
-        private static bool GenIDL_ModuleSecondPass(Repository repository, Package package, 
-            TextOutputInterface output, int depth, String pathToElem,
+        private static int GenIDL_ModuleSecondPass(Repository repository, Package package, 
+            TextOutputInterface output, int depth, String pathToElem, out int generatedItemCount,
             HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules,HashSet<long> completedClasses )
         {
-            bool generationComplete = true;
+            int notGeneratedClassCount = 0;
+            generatedItemCount = 0;
 
             // if unckecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
             if (IsElementUnchecked(uncheckedElem, packageFullName)) 
             {   
-                return true;
+                return 0;
             }
 
             if (!IsModuleRelevant(relevantModules, package, output))
             {
-                return true;
+                return 0;
+            }
+
+            if (completedClasses.Contains(package.PackageID))
+            {
+                return 0;
             }
 
             String moduleName = IDL_NormalizeUserDefinedClassifierName(package.Name);
-            bool emptyModuleContent = true;
+
+            int moduleOutputPosition = output.GetCurrentPosition();
             output.OutputTextLine(depth, "module " + moduleName + " {");
            
             foreach (Element e in package.Elements)
@@ -509,12 +579,12 @@ namespace IDL4_EA_Extension
                         if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses) )
                         {
                             GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
-                            emptyModuleContent = false;
+                            ++generatedItemCount;
                             completedClasses.Add(e.ElementID);
                         }
                         else
                         {
-                            generationComplete = false;
+                            ++notGeneratedClassCount;
                         }
                     }
                 }
@@ -522,20 +592,31 @@ namespace IDL4_EA_Extension
             
             foreach (Package p in package.Packages)
             {
-                bool nestedGenerationComplete = GenIDL_ModuleSecondPass(repository, p, output, depth + 1, packageFullName, 
-                    uncheckedElem, relevantModules, completedClasses);
-                generationComplete = generationComplete && nestedGenerationComplete;
-                emptyModuleContent = false;
+                int subModuleGeneratedItemCount; 
+                int submoduleNonGenClassCount = GenIDL_ModuleSecondPass(repository, p, output, depth + 1, packageFullName,
+                    out subModuleGeneratedItemCount, uncheckedElem, relevantModules, completedClasses);
+                notGeneratedClassCount += submoduleNonGenClassCount;
+                generatedItemCount += subModuleGeneratedItemCount;
+
+                if (submoduleNonGenClassCount == 0)
+                {
+                    // module is complete
+                    completedClasses.Add(p.PackageID);
+                }
             }
 
-            if (emptyModuleContent)
+            if (generatedItemCount == 0)
             {
                 GenIDL_EmptyModuleContent(moduleName, output, depth + 1);
+                output.ClearPositionRange(moduleOutputPosition, output.GetCurrentPosition());
             }
-            output.OutputTextLine(depth, "}; /* end: " + moduleName + " */");
-            output.OutputTextLine();
+            else
+            {
+                output.OutputTextLine(depth, "}; /* end: " + moduleName + " */");
+                output.OutputTextLine();
+            }
 
-            return generationComplete;
+            return notGeneratedClassCount;
         }
 
 
@@ -606,7 +687,6 @@ namespace IDL4_EA_Extension
          */
         private static bool GenIDL_Attributes(Repository repository, Element classElem, TextOutputInterface output, int depth)
         {
-            //TODO: Empty classes are not legal IDL. So if class is empty add some dummy element
             if (classElem.Attributes.Count == 0)
             {
                 return false;
@@ -876,6 +956,7 @@ namespace IDL4_EA_Extension
         private static bool GenIDL_DependenciesAlreadyGenerated(Repository repository, Element classElem,
             TextOutputInterface output, HashSet<long> completedClasses)
         {
+            // Check base classes
             if (classElem.BaseClasses.Count > 0)
             {
                 Object obj = classElem.BaseClasses.GetAt(0);
@@ -886,7 +967,36 @@ namespace IDL4_EA_Extension
                 }
             }
 
+            // Check atributes
+            foreach (EA.Attribute child in classElem.Attributes)
+            {       
+               if (child.ClassifierID == 0) /* Primitive type */
+                {
+                    continue;
+                }
+                if (!completedClasses.Contains(child.ClassifierID))
+                {
+                    // Not generated yet. It is only OK if this is by reference
+                    if ( !IsAttributeReference(child) )
+                    {
+                        return false;
+                    }
+                }
+            }
+
             return true;
+        }
+
+        /**
+         *  Determines whether the attribute links the member by reference
+         *  indicating that the type of the attribute does not need to be fully declared by
+         *  the time we generate the IDL for the containing class.
+         *   
+         *  This is true for attributes tagged "@Shared" and maybe others as well
+         */
+        private static bool IsAttributeReference(EA.Attribute member)
+        {
+            return (member.TaggedValues != null) && (EAUtil_FindChild(member.TaggedValues, "//@Shared") != null); 
         }
 
         private static void GenIDL_Class(Repository repository, Element classElem,

@@ -59,6 +59,18 @@ namespace IDL4_EA_Extension
             _textBox.Clear();
         }
 
+        public int GetCurrentPosition()
+        {
+            return _textBox.SelectionStart;
+        }
+
+        public void ClearPositionRange(int beginPosition, int endPosition)
+        {
+            _textBox.Select(beginPosition, endPosition);
+            _textBox.Cut();
+        }
+
+
         public void SaveToFile(String filePath, String[] preambleLines)
         {
             //System.IO.File.WriteAllText(filePath, _textBox.Text);
@@ -73,5 +85,7 @@ namespace IDL4_EA_Extension
                 file.Write(_textBox.Text);
             }
         }
+
+
     }
 }
