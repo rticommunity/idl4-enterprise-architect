@@ -387,7 +387,7 @@ namespace IDL4_EA_Extension
 
             if (notGeneratedClassCount > 0 )
             {
-                output.OutputTextLine("/* WARNING: " + notGeneratedClassCount + " classes could not be generated due to dependencies */");
+                output.OutputTextLine("/* WARNING: " + notGeneratedClassCount + " classes could not be generated due to circular dependencies */");
                 GenIDL_ReportUngeneratedClasses(repository, output, 0, uncheckedElem, moduleRelevance, completedClasses);         
             }
         }
@@ -397,6 +397,10 @@ namespace IDL4_EA_Extension
             TextOutputInterface output, int depth,
             HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
         {
+
+            output.OutputTextLine("/*");
+            output.OutputTextLine("     (<package> , <class>)  depends on (<package> , <class>) by means of <relationship>");
+            output.OutputTextLine("     ----------------------------------------------------------------------------------");
             foreach (Package model in repository.Models)
             {
                 if (uncheckedElem.Contains(model.Name))
@@ -410,6 +414,8 @@ namespace IDL4_EA_Extension
                     GenIDL_ReportUngeneratedClasses(repository, package, output, 0, model.Name, uncheckedElem, relevantModules, completedClasses);
                 }
             }
+            output.OutputTextLine("     -----------------------------------------------------------------------------------");
+            output.OutputTextLine("*/");
         }
 
         private static void GenIDL_ReportUngeneratedClasses(Repository repository, Package package,
@@ -436,7 +442,7 @@ namespace IDL4_EA_Extension
                     if ( ( completedClasses.Contains(e.ElementID) == false ) 
                         && GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null) )
                     {
-                        output.OutputTextLine("// Could not generate: class: \"" + e.Name + "\" in package: \"" + packageFullName + "\"");
+                        GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses, true);
                     }
                 }
             }
@@ -514,7 +520,7 @@ namespace IDL4_EA_Extension
             {
                 GenIDL_EmptyModuleContent(moduleName, output, depth + 1);
             }
-            output.OutputTextLine(depth, "}; /* end: " + moduleName + " */");
+            output.OutputTextLine(depth, "}; /* module " + moduleName + " */");
             output.OutputTextLine();
         }
 
@@ -576,7 +582,7 @@ namespace IDL4_EA_Extension
                 {
                     if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completedClasses))
                     {
-                        if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses) )
+                        if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses, false) )
                         {
                             GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
                             ++generatedItemCount;
@@ -612,7 +618,7 @@ namespace IDL4_EA_Extension
             }
             else
             {
-                output.OutputTextLine(depth, "}; /* end: " + moduleName + " */");
+                output.OutputTextLine(depth, "}; /* module " + moduleName + " */");
                 output.OutputTextLine();
             }
 
@@ -769,59 +775,162 @@ namespace IDL4_EA_Extension
             return true;
         }
 
-        private static String GenIDL_GetReferencedTypeToInclude(Repository repository, Element classElem, EA.Connector conn )
+        /**
+         * Determines if the association to the referenced type is such that the referenced type
+         * should be included as part of the referencing type.
+         * 
+         * Returns the fully qualified normalized name for the referenced type in case it needs to be included
+         * and null if it does need to be included
+         */
+        private static String GenIDL_GetReferencedTypeToInclude(out String annotation, out String refname,
+            Repository repository, 
+            Element classElem, EA.Connector conn, TextOutputInterface output )
         {
-            string[] relevantConnectorTypes = new string[] { "Aggregation", "Association" };
+            annotation = "";
+            refname = conn.Name;
+
+            string[] relevantConnectorTypes = new string[] { "Aggregation" };
+
             if (!relevantConnectorTypes.Contains(conn.Type))
             {
                 return null;
             }
-            
+           
             ConnectorEnd target = conn.SupplierEnd;
             ConnectorEnd source = conn.ClientEnd;
+            /*
+              output.OutputTextLine("GenIDL_GetReferencedTypeToInclude type: " + conn.Type
+                + " source/target.Aggr: [" + source.Aggregation + "," + target.Aggregation + "]"
+                + " direction: " + conn.Direction
+                + " cardinality: [" + conn.SupplierEnd.Cardinality + "|" + conn.ClientEnd.Cardinality + "]");
+            */
+
+            String refTypeName = null;
+            Element referencedElem = null;
+            String cardinality = null;
+
+            ConnectorEnd thisElemEnd;
+            ConnectorEnd referencedElemEnd;
+            int referencedElemId;
 
             if (classElem.ElementID == conn.ClientID)
             {
+                thisElemEnd = conn.ClientEnd;
+                referencedElemEnd = conn.SupplierEnd;
+                referencedElemId = conn.SupplierID;
+            }
+            else
+            {
+                thisElemEnd = conn.SupplierEnd;
+                referencedElemEnd = conn.ClientEnd;
+                referencedElemId = conn.ClientID;
+            }
+           
+            if (   (thisElemEnd.Aggregation == 0)
+                || (referencedElemEnd.IsNavigable == false) )
+            {
+                return null; ;
+            }
+
+            referencedElem = repository.GetElementByID(referencedElemId);
+            cardinality = referencedElemEnd.Cardinality;
+
+            /*
+            if (classElem.ElementID == conn.ClientID)
+            {
                 // We are source of relationship
+                //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude source.Aggregation: " + source.Aggregation);
+
                 if ( (source.Aggregation != 0)
-                    && (            
-                        conn.Direction.Equals("Source -> Destination") ||
-                        conn.Direction.Equals("Bi-Directional"))
-                    )
+                        && ( conn.Direction.Equals("Source -> Destination") ||
+                             conn.Direction.Equals("Bi-Directional")) )
                 {
-                    return repository.GetElementByID(conn.SupplierID).Name;
+                    //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude GetElementByID: " + conn.SupplierID);
+                    referencedElem = repository.GetElementByID(conn.SupplierID);
+                    cardinality = conn.SupplierEnd.Cardinality;
                 }
             }
             else
             {
-                // We are target of relationship
+                //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude target.Aggregation: " + target.Aggregation);
+
                 if ( (target.Aggregation != 0)
-                    && (            
-                        conn.Direction.Equals("Destination -> Source") ||
-                        conn.Direction.Equals("Bi-Directional"))
-                    )
+                         && ( conn.Direction.Equals("Destination -> Source") ||
+                              conn.Direction.Equals("Bi-Directional")) )
                 {
-                    return repository.GetElementByID(conn.ClientID).Name;
+                    //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude GetElementByID: " + conn.ClientID);
+                    referencedElem = repository.GetElementByID(conn.ClientID);
+                    cardinality = conn.ClientEnd.Cardinality;
+                }
+            }
+            */
+
+
+            if (referencedElem != null)
+            {
+                String normalizedMemberType = IDL_NormalizeMemberTypeName(referencedElem.Name);
+
+                if (refname.Equals(""))
+                {
+                    refname = "ref_" + normalizedMemberType;
                 }
 
+                refTypeName = GenIDL_GetFullPackageName(repository, referencedElem) + normalizedMemberType;
+
+                if (cardinality.Equals("") || cardinality.Equals("1"))
+                {
+                    // annotation = "//@Shared";
+                    refTypeName =  refTypeName + "*";
+                }
+                else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
+                {
+                    // No upper limit -> unbounded sequence
+                    refTypeName = "sequence<" + refTypeName + ">";
+                }
+                else
+                {
+                    // Bounded sequence
+                    int upperLimit = 0;
+                    if (Int32.TryParse(cardinality, out upperLimit))
+                    {
+                        if (upperLimit <= 0) { upperLimit = 1; }
+                        refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
+                    }
+                    else
+                    {
+                        int limitPos = cardinality.LastIndexOf("..");
+                        if ((limitPos != -1) &&
+                              Int32.TryParse(cardinality.Substring(limitPos + 2), out upperLimit))
+                        {
+                            refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
+                        }
+                        else
+                        {
+                            refTypeName = "sequence<" + refTypeName + ">";
+                        }
+                    }
+                }
             }
 
-            return null;
+            return refTypeName;
         }
 
+        //TODO: This should examine the relationship and determine the multiplicity so that
+        //      the relationship can be generated as a sequence rather than single reference.
         private static bool GenIDL_Relations(Repository repository, Element classElem, TextOutputInterface output, int depth)
         {
             bool generatedRelationship = false;
 
             foreach (EA.Connector conn in classElem.Connectors)
             {
-                String referencedType = GenIDL_GetReferencedTypeToInclude(repository, classElem, conn);
+                String annotation = null;
+                String refname = null;
+                String referencedType = GenIDL_GetReferencedTypeToInclude(out annotation, out refname, repository, classElem, conn, output);
                 // textForm.getTextBox().AppendText("    type: " + conn.Type  + Environment.NewLine);
 
                 if (referencedType != null)
                 {
-                    String connName = conn.Name;
-                    output.OutputTextLine(depth, referencedType + "  " + connName + ";");
+                    output.OutputTextLine(depth, referencedType + "  " + refname + "; " + annotation);
                     generatedRelationship = true;
                 }
             }
@@ -954,8 +1063,11 @@ namespace IDL4_EA_Extension
          * 
          */
         private static bool GenIDL_DependenciesAlreadyGenerated(Repository repository, Element classElem,
-            TextOutputInterface output, HashSet<long> completedClasses)
+            TextOutputInterface output, HashSet<long> completedClasses, bool outputReport)
         {
+
+            //output.OutputTextLine("// GenIDL_DependenciesAlreadyGenerated Checking: " + classElem.Name);
+
             // Check base classes
             if (classElem.BaseClasses.Count > 0)
             {
@@ -963,6 +1075,12 @@ namespace IDL4_EA_Extension
                 Element elem = (Element)obj;
                 if (!completedClasses.Contains(elem.ElementID))
                 {
+                    if (outputReport)
+                    {
+                        output.OutputText("    ( \"" + GenIDL_GetFullPackageName(repository, classElem) + "\" , \"" + classElem.Name + "\" )");
+                        output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, elem) + "\" , \"" + elem.Name + "\" )");
+                        output.OutputTextLine("  dependency: baseclass");
+                    }
                     return false;
                 }
             }
@@ -979,8 +1097,61 @@ namespace IDL4_EA_Extension
                     // Not generated yet. It is only OK if this is by reference
                     if ( !IsAttributeReference(child) )
                     {
+                        if (outputReport)
+                        {
+                            Element childTypeElem = repository.GetElementByID(child.ClassifierID);
+                            output.OutputText("    ( \"" + GenIDL_GetFullPackageName(repository, classElem) + "\" , \"" + classElem.Name + "\" )");
+                            output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, childTypeElem) + "\" , \"" + childTypeElem.Name + "\" )");
+                            output.OutputTextLine("   dependency:  attribute \"" + child.Name + "\"");
+                        }
+ 
                         return false;
                     }
+                }
+            }
+
+            // Check relationships (Aggregations only)
+            foreach (EA.Connector conn in classElem.Connectors)
+            {
+                ConnectorEnd thisElemEnd;
+                ConnectorEnd referencedElemEnd;
+                int referencedElemId;
+
+                if (classElem.ElementID == conn.ClientID)
+                {
+                    thisElemEnd = conn.ClientEnd;
+                    referencedElemEnd = conn.SupplierEnd;
+                    referencedElemId = conn.SupplierID;
+                }
+                else
+                {
+                    thisElemEnd = conn.SupplierEnd;
+                    referencedElemEnd = conn.ClientEnd;
+                    referencedElemId = conn.ClientID;
+                }
+
+                if ( (thisElemEnd.Aggregation == 0)
+                      || (conn.Type.Equals("Aggregation") == false))
+                {
+                    continue;
+                }
+
+                if (!referencedElemEnd.IsNavigable)
+                {
+                    continue;
+                }
+
+                if (!completedClasses.Contains(referencedElemId))
+                {
+                    if (outputReport)
+                    {
+                        Element referencedElem = repository.GetElementByID(referencedElemId);
+                        output.OutputText("    ( \"" + GenIDL_GetFullPackageName(repository, classElem) + "\" , \"" + classElem.Name + "\" )");
+                        output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, referencedElem) + "\" , \"" + referencedElem.Name + "\" )");
+                        output.OutputTextLine("   dependency:  aggregation \"" + conn.Name + "\"");
+                    }
+ 
+                    return false;
                 }
             }
 
