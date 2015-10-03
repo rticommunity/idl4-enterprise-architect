@@ -23,5 +23,6 @@ namespace IDL4_EA_Extension
         void OnSaveAction(String p);
         void OnDebugAction(String p);
         void OnCheckAction(TreeNode treeNode);
+        void OnIdlVersionAction(IDLVersion idlVer);
     }
 }

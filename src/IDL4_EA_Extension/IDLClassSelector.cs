@@ -19,6 +19,28 @@ using System.Windows.Forms;
 
 namespace IDL4_EA_Extension
 {
+    public class IDLVersion
+    {
+        public const int IDL_V350 = 350;
+        public const int IDL_V400 = 400;
+
+        public string Name { get; set; }
+        public int Value { get; set; }
+    }
+
+
+    public class IDLVersions : List<IDLVersion>
+    {
+        public static IDLVersion defaultVersion =
+            new IDLVersion { Name = "IDL v3.5", Value = IDLVersion.IDL_V350 };
+        public IDLVersions()
+        {
+            this.Add(new IDLVersion { Name = "IDL v3.5", Value = IDLVersion.IDL_V350 });
+            this.Add(new IDLVersion { Name = "IDL v4.0", Value = IDLVersion.IDL_V400 });
+
+        }
+    }
+
     public partial class IDLClassSelector : Form
     {
         UserActionInterface _actionInterface = null;
@@ -27,6 +49,10 @@ namespace IDL4_EA_Extension
         {
             _actionInterface = actionInterface;
             InitializeComponent();
+            IDLVersions idlVersions = new IDLVersions();
+            idlVersionComboBox.DataSource = idlVersions;            
+            idlVersionComboBox.DisplayMember = "Name";
+            idlVersionComboBox.ValueMember = "Name";
         }
 
         public TreeView getTreeView()
@@ -66,6 +92,14 @@ namespace IDL4_EA_Extension
         private void treeViewModelElements_AfterCheck(object sender, TreeViewEventArgs e)
         {
             _actionInterface.OnCheckAction(e.Node);
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ComboBox cb = (ComboBox)sender;
+            _actionInterface.OnIdlVersionAction((IDLVersion)cb.SelectedItem);
+            TreeNode sel = treeViewModelElements.SelectedNode;
+            if (sel != null) _actionInterface.OnSelectAction(sel);
         }
     }
 }

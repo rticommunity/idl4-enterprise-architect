@@ -40,6 +40,7 @@ namespace IDL4_EA_Extension
             _currentRepository = repository;
             _currentOutput = output;
             _uncheckedElements = uncheckedElements;
+            this.OnIdlVersionAction(IDLVersions.defaultVersion);
         }
 
         public void OnCodegenAction()
@@ -79,6 +80,12 @@ namespace IDL4_EA_Extension
             }
         }
 
+        public void OnIdlVersionAction( IDLVersion ver )
+        {
+            _currentOutput.Clear();
+            //_currentOutput.OutputTextLine("// IDL Version: " + ver.Value);
+            Main.setIdlVersion(ver.Value);
+        }
         public void OnDebugAction(string text)
         {
             _currentOutput.OutputTextLine(text);
@@ -91,6 +98,10 @@ namespace IDL4_EA_Extension
 
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_XML = "Generate IDL ...";
+
+        private static int idlVersion = IDLVersions.defaultVersion.Value;
+
+
 
         // Called Before EA starts to check Add-In Exists
         public string EA_Connect(Repository repository)
@@ -231,7 +242,7 @@ namespace IDL4_EA_Extension
 
             return child;
         }
-
+      
         internal static void GenIDL_Preview(Repository repository, TextOutputInterface output, HashSet<string> uncheckedElem, String fullPath)
         {
             char[] delimiterChars = { '\\'};
@@ -332,7 +343,21 @@ namespace IDL4_EA_Extension
 
             output.OutputTextLine(depth, "module " + IDL_NormalizeUserDefinedClassifierName(package.Name) + " {");
 
-            
+	    if ( (idlVersion >= IDLVersion.IDL_V400) &&
+		 (package.Elements.Count > 0) )
+	      {
+		output.OutputTextLine(depth+1, "// Forward Decls");
+		foreach (Element e in package.Elements)
+		  {
+		    GenIDL_FwdDecl(repository, e, output, 
+				   depth + 1, 
+				   uncheckedElem, 
+				   packageFullName);
+		  }
+
+		output.OutputTextLine("");
+	      }
+
             // Experimentally I determined that the package.Elements collection does not contain sub-packages
             // So we iterate separately over the nested packages and the nested classes
             foreach (Element e in package.Elements)
@@ -510,6 +535,26 @@ namespace IDL4_EA_Extension
             return elem.Stereotype.Equals("enumeration");
         }
 
+        private static void GenIDL_FwdDecl(Repository repository, 
+					   Element elem,
+					   TextOutputInterface output, 
+					   int depth,
+					   HashSet<String> uncheckedElem,
+					   String elementPath)
+        {
+	  string typ;
+	  if (IsElementEnum(elem))
+	    typ = "enum";
+	  else
+	    typ = "struct";
+	  
+	  output.OutputTextLine(depth,
+				typ + 
+				" " + 
+				IDL_NormalizeUserDefinedClassifierName(elem.Name) + 
+				";");
+	}
+
         private static void GenIDL_Enum(Repository repository, Element enumElem,
              TextOutputInterface output, int depth,
              HashSet<String> uncheckedElem, String elementPath)
@@ -577,7 +622,10 @@ namespace IDL4_EA_Extension
                 }
                 else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
                 {
-                    output.OutputText(depth, " //@" + normalizedAnnotation + " " + tag.Value);
+    		        if (idlVersion >= IDLVersion.IDL_V400)
+                        output.OutputText(depth, " //@" + normalizedAnnotation + "( " + tag.Value + " )" );
+		            else
+                        output.OutputText(depth, " //@" + normalizedAnnotation + " " + tag.Value);
                 }
             }
 
@@ -697,5 +745,10 @@ namespace IDL4_EA_Extension
                 ((e.Attributes.Count > 0) || (e.Connectors.Count > 0));
         }
 
+
+        internal static void setIdlVersion(int p)
+        {
+            Main.idlVersion = p;
+        }
     }
 }
