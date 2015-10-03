@@ -6,7 +6,7 @@
     <showFileUnpackingProgress>0</showFileUnpackingProgress>
     <removeLogFile>1</removeLogFile>
     <startMenuGroupName></startMenuGroupName>
-    <requestedExecutionLevel>highestAvailable</requestedExecutionLevel>
+    <requestedExecutionLevel>requireAdministrator</requestedExecutionLevel>
     <disableSplashScreen>1</disableSplashScreen>
     <leftImage>${leftImagePath}</leftImage>
     <logoImage>${logoImagePath}</logoImage>logoImage>
@@ -28,16 +28,54 @@
 			    <origin>IDL4_EA_Extension/bin/Release/IDL4_EA_Extension.dll</origin>
 			</distributionFile>
 			<distributionFile>
-			    <origin>IDL4_EA_Extension/bin/Release/Interop.EA.dll</origin>
+			    <origin>../uml_models/example/ExampleDataClasses.eap</origin>
 			</distributionFile>
 			<distributionFile>
-			    <origin>../ExampleDataClasses.eap</origin>
-			</distributionFile>			
+			    <origin>../redistributables/vcredist_2013_x86.exe</origin>
+			</distributionFile>
 		    </distributionFileList>
+                    <actionList>
+			<runProgram>
+			    <progressText>Installing VC++ 12 runtime</progressText>
+			    <program>${installdir}/vcredist_2013_x86.exe</program>
+			    <programArguments>/q:a /c:"msiexec /i vcredist.msi /qn /l*v ${system_temp_directory.dos}\vcredist_x86.log"</programArguments>
+			</runProgram>
+		    </actionList>
 		</folder>
 	    </folderList>
 	</component>
     </componentList>
+    <initializationActionList>
+	<setInstallerVariable name="msiexec" value="" />
+	<setInstallerVariable name="msiexec" persist="1" value="msiexec.exe">
+            <ruleList>
+		<programTest name="msiexec.exe" condition="is_in_path" />
+            </ruleList>
+	</setInstallerVariable>
+	<setInstallerVariable name="msiexec" persist="1" value="${windows_dir}/system32/msiexec.exe">
+            <ruleList>
+		<fileTest condition="exists" path="${windows_dir}/system32/msiexec.exe" />
+		<compareText text="${msiexec}" value="" nocase="0" logic="equals" />
+            </ruleList>
+	</setInstallerVariable>
+	<actionGroup>
+            <actionList>
+		<getWindowsFileVersionInfo type="version" path="${msiexec}" variable="msi_version" />
+		<setInstallerVariableFromRegEx name="msi_version" text="${msi_version}" pattern="(^[0-9]+)\.([0-9]+)\..*" substitution="\1.\2" />
+            </actionList>
+            <ruleList>
+		<compareText text="${msiexec}" value="" nocase="0" logic="does_not_equal" />
+            </ruleList>
+	</actionGroup>
+	<throwError>
+            <text>You need at least Windows Installer MSI version 3.1.</text>
+            <ruleEvaluationLogic>or</ruleEvaluationLogic>
+            <ruleList>
+		<compareText text="${msiexec}" value="" nocase="0" logic="equals" />
+		<compareValues value1="${msi_version}" value2="3.1" logic="less" />
+            </ruleList>
+	</throwError>
+    </initializationActionList>
     <readyToInstallActionList>
 	<autodetectDotNetFramework>
 	    <validDotNetVersionList>
