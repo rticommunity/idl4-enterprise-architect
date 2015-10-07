@@ -41,6 +41,7 @@ namespace IDL4_EA_Extension
             _currentRepository = repository;
             _currentOutput = output;
             _uncheckedElements = uncheckedElements;
+            this.OnIdlVersionAction(IDLVersions.defaultVersion);
         }
 
         public void OnCodegenAction()
@@ -81,6 +82,12 @@ namespace IDL4_EA_Extension
             }
         }
 
+        public void OnIdlVersionAction( IDLVersion ver )
+        {
+            _currentOutput.Clear();
+            //_currentOutput.OutputTextLine("// IDL Version: " + ver.Value);
+            Main.setIdlVersion(ver.Value);
+        }
         public void OnDebugAction(string text)
         {
             _currentOutput.OutputTextLine(text);
@@ -93,6 +100,10 @@ namespace IDL4_EA_Extension
 
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_XML = "Generate IDL ...";
+
+        private static int idlVersion = IDLVersions.defaultVersion.Value;
+
+
 
         // Called Before EA starts to check Add-In Exists
         public string EA_Connect(Repository repository)
@@ -205,7 +216,7 @@ namespace IDL4_EA_Extension
 
             foreach (Element e in package.Elements)
             {
-                if (IsClass(e))
+                if (IsClass(e) || IsElementEnum(e) )
                 {
                     TreeNode classNode = new TreeNode(e.Name);
                     classNode.Checked = true;
@@ -634,25 +645,36 @@ namespace IDL4_EA_Extension
             for (short i = 0 ; i < childCount; ++i ) 
             {
                 EA.Attribute child = enumElem.Attributes.GetAt(i);
-                String typeName = IDL_NormalizeMemberTypeName(child.Type);
+                // String typeName = IDL_NormalizeMemberTypeName(child.Type);
                 if (i < childCount - 1)
                 {
-                    output.OutputText(depth, typeName + "  " + enumName + "_" + child.Name + ",");
+                    output.OutputText(depth, enumName + "_" + child.Name + ",");
                 }
                 else
                 {
-                    output.OutputText(depth, typeName + "  " + enumName + "_" + child.Name);
+                    output.OutputText(depth, enumName + "_" + child.Name);
                 }
 
-                string[] relevantAnnotationsWithValue = new string[] {
-                    "ID", "Value"
-                };
-                foreach (AttributeTag tag in child.TaggedValues)
+                // Handle enumeration values. The "default value set in UML takes precedence
+                // if not then look at the tag Value
+                int value;
+                if (Int32.TryParse(child.Default, out value))
                 {
-                    String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
-                    if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
+                    output.OutputText(" //@Value " + child.Default);
+                }
+                else
+                {
+                    string[] relevantAnnotationsWithValue = new string[] {
+                        "ID", "Value"
+                    };
+
+                    foreach (AttributeTag tag in child.TaggedValues)
                     {
-                        output.OutputText(" //@" + normalizedAnnotation + " " + tag.Value);
+                        String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+                        if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
+                        {
+                            output.OutputText(" //@" + normalizedAnnotation + " " + tag.Value);
+                        }
                     }
                 }
 
@@ -717,63 +739,147 @@ namespace IDL4_EA_Extension
                         + IDL_NormalizeMemberTypeName(attributeType.Name);
                 }
 
-                // output.OutputText(depth, "/* child.ClassifierID = " + child.ClassifierID + " */");
-
                 int lower  = Convert.ToInt32(child.LowerBound);
                 int upper = Convert.ToInt32(child.UpperBound);
 
+                int attributeDepth = depth;
+                if ( idlVersion >= IDLVersion.IDL_V400) {
+                    if (GenIDL_AttributeAnnotation(child, output, depth) > 0)
+                    {
+                        attributeDepth = 0;
+                    }
+                }
+
                 if (upper == 0) // Unbounded sequence
                 {
-                    output.OutputText(depth, "sequence<" + typeName + "> " + child.Name + ";");
+                    output.OutputText(attributeDepth, "sequence<" + typeName + "> " + child.Name + ";");
                 }
                 else if (lower == upper)
                 {
                     if (upper == 1) // Single member
                     {
-                        output.OutputText(depth, typeName + "  " + child.Name + ";" );
+                        output.OutputText(attributeDepth, typeName + "  " + child.Name + ";");
                     }
                     else // Array
                     {
-                        output.OutputText(depth, typeName + " " + child.Name + "[" + child.UpperBound + "];");
+                        output.OutputText(attributeDepth, typeName + " " + child.Name + "[" + child.UpperBound + "];");
                     }
                 }
                 else if (lower == 0 && upper == 1) // optional
                 {
-                    output.OutputText(depth, typeName + " " + child.Name + "; //@Optional");
+                    // Handle this the same as an @optional annotation
+                    if (idlVersion >= IDLVersion.IDL_V400)
+                    {
+                        GenIDL_Annotation("Optional", true, output, attributeDepth);
+                        output.OutputText(" " + typeName + " " + child.Name + ";");
+                    }
+                    else
+                    {
+                        output.OutputText(attributeDepth, typeName + " " + child.Name + ";");
+                        GenIDL_Annotation("Optional", true, output, depth);
+                    }
                 }
                 else // bounded sequence
                 {
-                    output.OutputText(depth, "sequence<" + typeName + "," + child.UpperBound + "> "
+                    output.OutputText(attributeDepth, "sequence<" + typeName + "," + child.UpperBound + "> "
                         + child.Name + " ;");
                 }
-                
-                string[] relevantAnnotationsNoValue = new string[] {
-                    "Key", "must_understand",
-                    "autoid", "Optional",
-                    "external", "nested",
-                    "oneway", "ami"
-                };
-                string[] relevantAnnotationsWithValue = new string[] {
-                    "ID", "Value"
-                };
-                foreach (AttributeTag tag in child.TaggedValues)
-                {
-                    String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
-                    if ( relevantAnnotationsNoValue.Contains(normalizedAnnotation) ) 
-                    {
-                        output.OutputText(" //@" + normalizedAnnotation);
-                    }
-                    else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
-                    {
-                        output.OutputText(" //@" + normalizedAnnotation + " " + tag.Value);
-                    }
-                }
 
+                if (idlVersion < IDLVersion.IDL_V400)
+                {
+                    GenIDL_AttributeAnnotation(child, output, depth);
+                }
                 output.OutputTextLine();
             }
 
             return true;
         }
+
+
+        private static void GenIDL_Annotation(
+            String annotationName, bool firstAnnotation,
+            TextOutputInterface output, int depth)
+        {
+            GenIDL_Annotation(annotationName, null, firstAnnotation, output, depth);
+        }
+
+        private static void GenIDL_Annotation(
+            String annotationName, String annotationParam1, bool firstAnnotation,
+            TextOutputInterface output, int depth)
+        {
+            if (idlVersion >= IDLVersion.IDL_V400)
+            {
+                output.OutputText(depth, "@" + annotationName.ToLower());
+                if (annotationParam1 != null)
+                {
+                    output.OutputText("(" + annotationParam1 + ") ");
+                }
+                else
+                {
+                    output.OutputText(depth, " ");
+                }
+            }
+            else if (idlVersion >= IDLVersion.IDL_V350)
+            {
+                output.OutputText("  //@" + annotationName);
+                if (annotationParam1 != null)
+                {
+                    output.OutputText("(" + annotationParam1 + ") ");
+                }
+            }
+            else
+            {
+                if (firstAnnotation)
+                {
+                    output.OutputText("  //@" + annotationName);
+                } 
+                else {
+                    output.OutputTextLine();
+                    output.OutputText(depth, "    //@" + annotationName);
+                }
+
+                if (annotationParam1 != null)
+                {
+                    output.OutputText(" " + annotationParam1);
+                }
+            }
+        }
+
+        /** Outputs the annovations associated with the attribute
+         * 
+         * Returns the number of annotations printed
+         */ 
+        private static int GenIDL_AttributeAnnotation(EA.Attribute child, TextOutputInterface output, int depth)
+        {
+            string[] relevantAnnotationsNoValue = new string[] {
+                    "Key", "must_understand",
+                    "autoid", "Optional",
+                    "external", "nested",
+                    "oneway", "ami"
+                };
+            string[] relevantAnnotationsWithValue = new string[] {
+                    "ID", "Value"
+                };
+
+            int annotationCount = 0;
+            foreach (AttributeTag tag in child.TaggedValues)
+            {
+                String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+                if (relevantAnnotationsNoValue.Contains(normalizedAnnotation))
+                {
+                    GenIDL_Annotation(normalizedAnnotation, annotationCount==0, output, depth);
+                    ++annotationCount;
+                }
+                else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
+                {
+                    GenIDL_Annotation(normalizedAnnotation, tag.Value, annotationCount==0, output, depth);
+                    ++annotationCount;
+                }
+            }
+
+            return annotationCount;
+        }
+
 
         /**
          * Determines if the association to the referenced type is such that the referenced type
@@ -960,7 +1066,7 @@ namespace IDL4_EA_Extension
         private static bool IsElementEnum(Element elem)
         {
             // TODO
-            return elem.Stereotype.Equals("enumeration");
+            return elem.Type.Equals("Enumeration") || elem.Stereotype.Equals("enumeration");
         }
 
         /**
@@ -1183,8 +1289,18 @@ namespace IDL4_EA_Extension
                     + IDL_NormalizeUserDefinedClassifierName(elem.Name);
             }
 
-            String className = IDL_NormalizeUserDefinedClassifierName(classElem.Name); 
-            output.OutputText(depth, "struct " + className);
+            String className = IDL_NormalizeUserDefinedClassifierName(classElem.Name);
+            
+            // In IDL4 and higher annotations are before the class
+            if  ( (idlVersion >= IDLVersion.IDL_V400) 
+                    && (GenIDL_ClassAnnotation(classElem, output, depth) > 0 ) ) 
+            {
+                output.OutputText(" struct " + className);
+            }
+            else
+            {
+                output.OutputText(depth, "struct " + className);
+            }
             if (baseClassName != null)
             {
                 output.OutputText(" : " + baseClassName);
@@ -1207,7 +1323,17 @@ namespace IDL4_EA_Extension
             }
             output.OutputText(depth, "};");
 
+            // In IDL35 annotations may appear after the class as a comment
+            if (idlVersion < IDLVersion.IDL_V400)
+            {
+                GenIDL_ClassAnnotation(classElem, output, depth);
+            }
+            output.OutputTextLine();
+        }
 
+        private static int GenIDL_ClassAnnotation(Element classElem,
+            TextOutputInterface output, int depth)
+        {
             string[] relevantAnnotationsNoValue = new string[] { 
                 "autoid", 
                 "final", "mutable", 
@@ -1217,22 +1343,26 @@ namespace IDL4_EA_Extension
             string[] relevantAnnotationsWithValue = new string[] { 
                 "Extensibility", "verbatim"
             };
+
+            int annotationCount = 0;
             foreach (TaggedValue tag in classElem.TaggedValues)
             {
                 String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name.ToLower());
                 if (relevantAnnotationsNoValue.Contains(normalizedAnnotation))
                 {
-                    output.OutputText(depth, " //@" + normalizedAnnotation);
+                    GenIDL_Annotation(normalizedAnnotation, annotationCount == 0, output, depth);
+                    ++annotationCount;
                 }
                 else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
                 {
-                    output.OutputText(depth, " //@" + normalizedAnnotation + " " + tag.Value);
+                    GenIDL_Annotation(normalizedAnnotation, tag.Value, annotationCount==0, output, depth);
+                    ++annotationCount;
                 }
             }
 
-            output.OutputTextLine();
+            return annotationCount;
         }
-
+        
 
         private static char[] invalidTypenameChars = new char[] { ' ', '-', '&', '(', ')' };
 
@@ -1356,5 +1486,10 @@ namespace IDL4_EA_Extension
             return (e.Attributes.Count == 0) && (e.Connectors.Count == 0);
         }
 
+
+        internal static void setIdlVersion(int p)
+        {
+            Main.idlVersion = p;
+        }
     }
 }
