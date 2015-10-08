@@ -29,7 +29,7 @@ namespace IDL4_EA_Extension
             _actionInterface = actionInterface;
             InitializeComponent();
             IDLVersions idlVersions = new IDLVersions();
-            idlVersionComboBox.DataSource = idlVersions;            
+            idlVersionComboBox.DataSource = idlVersions.getVersionList();            
             idlVersionComboBox.DisplayMember = "Name";
             idlVersionComboBox.ValueMember = "Name";
         }
@@ -85,7 +85,7 @@ namespace IDL4_EA_Extension
     public class IDLVersion
     {
         public const int IDL_V350_CONNEXT52 = 349;
-        public const int IDL_V350 = 350;
+        public const int IDL_V350_XTYPES = 350;
         public const int IDL_V400 = 400;
 
         public string Name { get; set; }
@@ -93,16 +93,23 @@ namespace IDL4_EA_Extension
     }
 
 
-    public class IDLVersions : List<IDLVersion>
+    public class IDLVersions 
     {
+        List<IDLVersion> _versions;
         public static IDLVersion defaultVersion =
             new IDLVersion { Name = "IDL v3.5 (RTI Connext 5.2)", Value = IDLVersion.IDL_V350_CONNEXT52 };
+
+        public List<IDLVersion> getVersionList()
+        {
+            return _versions;
+        }
+
         public IDLVersions()
         {
-            this.Add(new IDLVersion { Name = "IDL v3.5 (RTI Connext 5.2)", Value = IDLVersion.IDL_V350_CONNEXT52 });
-            this.Add(new IDLVersion { Name = "IDL v3.5", Value = IDLVersion.IDL_V350 });
-            this.Add(new IDLVersion { Name = "IDL v4.0", Value = IDLVersion.IDL_V400 });
-
+            _versions = new List<IDLVersion>();
+            _versions.Add(new IDLVersion { Name = "IDL v3.5  +  RTI Connext DDS 5.2", Value = IDLVersion.IDL_V350_CONNEXT52 });
+            _versions.Add(new IDLVersion { Name = "IDL v3.5  +  DDS-XTYPES 1.0", Value = IDLVersion.IDL_V350_XTYPES });
+            _versions.Add(new IDLVersion { Name = "IDL v4.0", Value = IDLVersion.IDL_V400 });
         }
     }  
 }

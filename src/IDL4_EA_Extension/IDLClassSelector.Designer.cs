@@ -128,9 +128,9 @@
             // idlVersionComboBox
             // 
             this.idlVersionComboBox.FormattingEnabled = true;
-            this.idlVersionComboBox.Location = new System.Drawing.Point(32, 14);
+            this.idlVersionComboBox.Location = new System.Drawing.Point(18, 14);
             this.idlVersionComboBox.Name = "idlVersionComboBox";
-            this.idlVersionComboBox.Size = new System.Drawing.Size(121, 21);
+            this.idlVersionComboBox.Size = new System.Drawing.Size(196, 21);
             this.idlVersionComboBox.TabIndex = 0;
             this.idlVersionComboBox.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
             // 
