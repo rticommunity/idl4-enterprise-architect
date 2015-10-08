@@ -48,7 +48,7 @@ namespace IDL4_EA_Extension
 
         public void OnCodegenAction()
         {
-            Main.GenIDL(_currentRepository, _currentOutput, _uncheckedElements);
+            Main.GenIDL(_currentRepository, false, _currentOutput, _uncheckedElements);
         }
 
         public void OnSaveAction(string filePath)
@@ -253,6 +253,13 @@ namespace IDL4_EA_Extension
         {
             char[] delimiterChars = { '\\'};
             String[] elementNames = fullPath.Split(delimiterChars);
+            String pathToElement = "";
+
+            if (elementNames.Length <= 1)
+            {
+                GenIDL(repository, true, output, uncheckedElem);
+                return;
+            }
 
             Package package = (Package)EAUtil_FindChild(repository.Models, elementNames[0]);
             if (package == null)
@@ -282,10 +289,13 @@ namespace IDL4_EA_Extension
                 return;
             }
 
+            pathToElement = elementNames[0];
             for (int i = 1; i < elementNames.Length - 1; ++i)
             {
                 output.OutputText("module " + IDL_NormalizeUserDefinedClassifierName(elementNames[i]) + " {  ");
+                pathToElement += "\\" + elementNames[i];
             }
+
             output.OutputTextLine();
             if (package != null)
             {
@@ -294,10 +304,12 @@ namespace IDL4_EA_Extension
                 Dictionary<long, bool> moduleRelevance = new Dictionary<long, bool>();
                 HashSet<long> dummyCompletedClases = new HashSet<long>();
                 UpdateModuleRelevance(moduleRelevance, package, output);
-                Main.GenIDL_ModuleFirstPass(repository, package, output, elementNames.Length - 1, null, null, moduleRelevance, null);
+                Main.GenIDL_ModuleFirstPass(repository, package, true,
+                    output, elementNames.Length - 1, pathToElement, uncheckedElem, moduleRelevance, null);
                 int generatedItemCount;
-                Main.GenIDL_ModuleSecondPass(repository, package, output, elementNames.Length - 1, null,
-                    out generatedItemCount, null, moduleRelevance, dummyCompletedClases);
+                Main.GenIDL_ModuleSecondPass(repository, package, true,
+                    output, elementNames.Length - 1, pathToElement,
+                    out generatedItemCount, uncheckedElem, moduleRelevance, dummyCompletedClases);
             }
             else if (classElem != null)
             {
@@ -305,11 +317,11 @@ namespace IDL4_EA_Extension
                 // output.OutputTextLine("Displaying Class: " + classElem.Name);
                 if (IsElementEnum(classElem))
                 {
-                    Main.GenIDL_Enum(repository, classElem, output, elementNames.Length - 1, null, "");
+                    Main.GenIDL_Enum(repository, classElem, output, elementNames.Length - 1, uncheckedElem, pathToElement);
                 }
                 else
                 {
-                    Main.GenIDL_Class(repository, classElem, output, elementNames.Length - 1, null, "");
+                    Main.GenIDL_Class(repository, classElem, output, elementNames.Length - 1, uncheckedElem, pathToElement);
                  }
             }
             for (int i = 1; i < elementNames.Length - 1; ++i)
@@ -327,7 +339,7 @@ namespace IDL4_EA_Extension
             output.OutputTextLine(builtinTypes);
         }
 
-        internal static void GenIDL(Repository repository, TextOutputInterface output, HashSet<String> uncheckedElem)
+        internal static void GenIDL(Repository repository, bool isPreview, TextOutputInterface output, HashSet<String> uncheckedElem)
         {
             output.Clear();
 
@@ -349,7 +361,7 @@ namespace IDL4_EA_Extension
 
             foreach (Package model in repository.Models)
             {
-                if (uncheckedElem.Contains(model.Name) )
+                if ((!isPreview) && uncheckedElem.Contains(model.Name))
                 {
                     // if unckecked skip this model
                     continue;
@@ -360,7 +372,7 @@ namespace IDL4_EA_Extension
 
             foreach (Package model in repository.Models)
             {
-                if (uncheckedElem.Contains(model.Name))
+                if ((!isPreview) && uncheckedElem.Contains(model.Name))
                 {
                     // if unckecked skip this model
                     continue;
@@ -369,7 +381,8 @@ namespace IDL4_EA_Extension
                 output.OutputTextLine("/* -----  Model: \"" + model.Name + "\"  ----- */");
                 foreach (Package package in model.Packages)
                 {
-                    GenIDL_ModuleFirstPass(repository, package, output, 0, model.Name, uncheckedElem, moduleRelevance, completedClasses);
+                    GenIDL_ModuleFirstPass(repository, package, false,
+                        output, 0, model.Name, uncheckedElem, moduleRelevance, completedClasses);
                 }
             }
 
@@ -382,7 +395,7 @@ namespace IDL4_EA_Extension
 
                 foreach (Package model in repository.Models)
                 {
-                    if (uncheckedElem.Contains(model.Name))
+                    if ((!isPreview) && uncheckedElem.Contains(model.Name))
                     {
                         // if unckecked skip this model
                         continue;
@@ -391,7 +404,8 @@ namespace IDL4_EA_Extension
                     foreach (Package package in model.Packages)
                     {
                         int generatedItemCount;
-                        notGeneratedClassCount += GenIDL_ModuleSecondPass(repository, package, output, 0, model.Name,
+                        notGeneratedClassCount += GenIDL_ModuleSecondPass(repository, package, false,
+                            output, 0, model.Name,
                             out generatedItemCount, uncheckedElem, moduleRelevance, completedClasses);
                     }
                 }
@@ -485,13 +499,13 @@ namespace IDL4_EA_Extension
          *  
          *
          */
-        private static void GenIDL_ModuleFirstPass(Repository repository, Package package,
+        private static void GenIDL_ModuleFirstPass(Repository repository, Package package, bool forceSelection,
             TextOutputInterface output, int depth, String pathToElem,
             HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
         {
             // if unckecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
-            if (IsElementUnchecked(uncheckedElem, packageFullName))
+            if ( (!forceSelection) && IsElementUnchecked(uncheckedElem, packageFullName))
             {
                 return;
             }
@@ -508,6 +522,11 @@ namespace IDL4_EA_Extension
  
             foreach (Element e in package.Elements)
             {
+                if (IsElementUnchecked(uncheckedElem, packageFullName, e.Name))
+                {
+                    continue;
+                }
+
                 if (IsElementEnum(e))
                 {
                     GenIDL_Enum(repository, e, output, depth + 1, uncheckedElem, packageFullName);
@@ -528,7 +547,8 @@ namespace IDL4_EA_Extension
 
             foreach (Package p in package.Packages)
             {
-                GenIDL_ModuleFirstPass(repository, p, output, depth + 1, packageFullName, uncheckedElem, relevantModules, completedClasses);
+                GenIDL_ModuleFirstPass(repository, p, false,
+                    output, depth + 1, packageFullName, uncheckedElem, relevantModules, completedClasses);
                 emptyModuleContent = false;
             }
 
@@ -562,7 +582,7 @@ namespace IDL4_EA_Extension
          * In this case the strategy is to report the error so the user can break the dependency by, for example,
          * declaring on of the dependencies in the link as "@Shared"
          */
-        private static int GenIDL_ModuleSecondPass(Repository repository, Package package, 
+        private static int GenIDL_ModuleSecondPass(Repository repository, Package package, bool forceSelection,
             TextOutputInterface output, int depth, String pathToElem, out int generatedItemCount,
             HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules,HashSet<long> completedClasses )
         {
@@ -571,7 +591,7 @@ namespace IDL4_EA_Extension
 
             // if unckecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
-            if (IsElementUnchecked(uncheckedElem, packageFullName)) 
+            if ( (!forceSelection) && IsElementUnchecked(uncheckedElem, packageFullName) ) 
             {   
                 return 0;
             }
@@ -615,7 +635,8 @@ namespace IDL4_EA_Extension
             foreach (Package p in package.Packages)
             {
                 int subModuleGeneratedItemCount; 
-                int submoduleNonGenClassCount = GenIDL_ModuleSecondPass(repository, p, output, depth + 1, packageFullName,
+                int submoduleNonGenClassCount = GenIDL_ModuleSecondPass(repository, p, false,
+                    output, depth + 1, packageFullName,
                     out subModuleGeneratedItemCount, uncheckedElem, relevantModules, completedClasses);
                 notGeneratedClassCount += submoduleNonGenClassCount;
                 generatedItemCount += subModuleGeneratedItemCount;
