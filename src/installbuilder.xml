@@ -30,6 +30,17 @@
 			<distributionFile>
 			    <origin>../uml_models/example/ExampleDataClasses.eap</origin>
 			</distributionFile>
+		    </distributionFileList>
+		</folder>
+	    </folderList>
+	</component>
+	<component>
+	    <name>vs2013_redistributable</name>
+	    <folderList>
+		<folder>
+		    <description>installation_dir</description>
+		    <destination>${installdir}</destination>
+		    <distributionFileList>
 			<distributionFile>
 			    <origin>../redistributables/vcredist_2013_x86.exe</origin>
 			</distributionFile>
@@ -39,11 +50,24 @@
 			    <progressText>Installing VC++ 12 runtime</progressText>
 			    <program>${installdir}/vcredist_2013_x86.exe</program>
 			    <programArguments>/q:a /c:"msiexec /i vcredist.msi /qn /l*v ${system_temp_directory.dos}\vcredist_x86.log"</programArguments>
+			    <abortOnError>0</abortOnError>
 			</runProgram>
 		    </actionList>
+		    <ruleList>
+			<registryTest>
+			    <key>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\12.0\VC\Runtimes\x86</key>
+			    <logic>does_not_exist</logic>
+			    <name>Installed</name>
+			</registryTest>			    
+			<registryTest>
+			    <key>HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\VisualStudio\12.0\VC\Runtimes\x86</key>
+			    <logic>does_not_exist</logic>
+			    <name>Installed</name>
+			</registryTest>
+		    </ruleList>
 		</folder>
 	    </folderList>
-	</component>
+	</component>	
     </componentList>
     <initializationActionList>
 	<setInstallerVariable name="msiexec" value="" />
