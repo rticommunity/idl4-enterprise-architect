@@ -19,6 +19,6 @@ The installation includes **ExampleDataClasses.eap**, an example project file th
 
 ## Contributing to the Repository
 
-To contribute enhancements or additional functionality to the repository, submit pull requests using the GitHub's usual mechanisms. 
+To contribute enhancements or additional functionality to the repository, submit pull requests using GitHub's usual mechanisms. 
 
 IDL4 Sparx Enterprise Architect Extension source code is distributed under the [Apache License, Version 2.0](LICENSE).
