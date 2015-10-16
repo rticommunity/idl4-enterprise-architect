@@ -1430,9 +1430,10 @@ namespace IDL4_EA_Extension
         private static readonly string[] octetTypes     = new string[] { "octet", "byte", "int8", "int8_t", "uint8", "uint8_t" };
         private static readonly string[] floatTypes     = new string[] { "float", "float32", "number" };
         private static readonly string[] doubleTypes    = new string[] { "double", "float64" };
+        private static readonly string[] stringTypes    = new string[] { "string", "String" };
 
         private static readonly string[][] primtiveTypeVariations = {
-            longlongTypes, ulonglongTypes, longTypes, ulongTypes, shortTypes, ushortTypes, octetTypes, floatTypes, doubleTypes };
+            longlongTypes, ulonglongTypes, longTypes, ulongTypes, shortTypes, ushortTypes, octetTypes, floatTypes, doubleTypes, stringTypes };
 
         private static readonly Regex MultipleSpaces = new Regex(@" {2,}", RegexOptions.Compiled);
 
@@ -1446,7 +1447,7 @@ namespace IDL4_EA_Extension
             String normalizedType = MultipleSpaces.Replace(typeName, " ");
             for (int typeFamily = 0; typeFamily < primtiveTypeVariations.GetLength(0); ++typeFamily)
             {
-                if (primtiveTypeVariations[typeFamily].Contains(normalizedType))
+                if (primtiveTypeVariations[typeFamily].Contains(normalizedType.ToLower()))
                 {
                     return primtiveTypeVariations[typeFamily][0];
                 }
