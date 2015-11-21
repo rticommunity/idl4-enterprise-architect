@@ -927,34 +927,41 @@ namespace IDL4_EA_Extension
 
 
         /**
-         * Determines if the association to the referenced type is such that the referenced type
+         * Determines if the relationship to the referenced type is such that the referenced type
          * should be included as part of the referencing type.
          * 
          * Returns the fully qualified normalized name for the referenced type in case it needs to be included
-         * and null if it does need to be included
+         * and null if it does need to be included.
+         * 
+         * Currently we include the referenced type if an only if the relationsip is of type "Aggregation" and it is
+         * navigable from Element classElem to the referenced element.
+         * This means that we ignore relationships of kind "Association"
          */
         private static String GenIDL_GetReferencedTypeToInclude(out String annotation, out String refname,
-            Repository repository, 
-            Element classElem, EA.Connector conn, TextOutputInterface output )
+            Repository repository,
+            Element classElem, EA.Connector conn, TextOutputInterface output, int depth)
         {
-            annotation = "";
+            annotation = null;
             refname = conn.Name;
 
+            // Only consider "Aggregation" relationship. Not "Association"
             string[] relevantConnectorTypes = new string[] { "Aggregation" };
+
+
+            //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude name: " + refname + " type: " + conn.Type
+            //  + " source/target.Aggr: [" + conn.ClientEnd.Aggregation + "," + conn.SupplierEnd.Aggregation + "]"
+            //  + " direction: " + conn.Direction
+            //  + " cardinality: [" + conn.SupplierEnd.Cardinality + "|" + conn.ClientEnd.Cardinality + "]");
 
             if (!relevantConnectorTypes.Contains(conn.Type))
             {
+                output.OutputTextLine(depth, "/* Skipping " + refname + " because relationshipKind is " + conn.Type + " instead of Aggregation */"); 
                 return null;
             }
+
            
             ConnectorEnd target = conn.SupplierEnd;
-            ConnectorEnd source = conn.ClientEnd;
-            /*
-              output.OutputTextLine("GenIDL_GetReferencedTypeToInclude type: " + conn.Type
-                + " source/target.Aggr: [" + source.Aggregation + "," + target.Aggregation + "]"
-                + " direction: " + conn.Direction
-                + " cardinality: [" + conn.SupplierEnd.Cardinality + "|" + conn.ClientEnd.Cardinality + "]");
-            */
+            ConnectorEnd source = conn.ClientEnd;          
 
             String refTypeName = null;
             Element referencedElem = null;
@@ -976,12 +983,20 @@ namespace IDL4_EA_Extension
                 referencedElemEnd = conn.ClientEnd;
                 referencedElemId = conn.ClientID;
             }
-           
-            if (   (thisElemEnd.Aggregation == 0)
-                || (referencedElemEnd.IsNavigable == false) )
+
+
+            if ( thisElemEnd.Aggregation == 0) 
             {
+                output.OutputTextLine(depth, "/* Skipping " + refname + " because end is non-aggregating */"); 
+                return null;
+            }
+
+            if (referencedElemEnd.IsNavigable == false) 
+            {
+                output.OutputTextLine(depth, "/* Skipping " + refname + " because is non-navigable */");
                 return null; ;
             }
+
 
             referencedElem = repository.GetElementByID(referencedElemId);
             cardinality = referencedElemEnd.Cardinality;
@@ -1030,8 +1045,15 @@ namespace IDL4_EA_Extension
 
                 if (cardinality.Equals("") || cardinality.Equals("1"))
                 {
-                    // annotation = "//@Shared";
-                    refTypeName =  refTypeName + "*";
+                    // Use pointer notation for IDL_V350_CONNEXT52 
+                    if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
+                    {
+                        refTypeName = refTypeName + "*";
+                    }
+                    else // Otherwise use an annotation
+                    {
+                        annotation = "@Shared";
+                    }
                 }
                 else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
                 {
@@ -1074,14 +1096,30 @@ namespace IDL4_EA_Extension
 
             foreach (EA.Connector conn in classElem.Connectors)
             {
+                //output.OutputTextLine("GenIDL_Relations: Connector: " + conn.Name);
+
                 String annotation = null;
                 String refname = null;
-                String referencedType = GenIDL_GetReferencedTypeToInclude(out annotation, out refname, repository, classElem, conn, output);
-                // textForm.getTextBox().AppendText("    type: " + conn.Type  + Environment.NewLine);
+                String referencedType = GenIDL_GetReferencedTypeToInclude(out annotation, out refname, repository, classElem, conn, output, depth);
 
                 if (referencedType != null)
                 {
-                    output.OutputTextLine(depth, referencedType + "  " + refname + "; " + annotation);
+                    if (annotation != null)
+                    {
+                        if (idlVersion >= IDLVersion.IDL_V400)
+                        {
+                            output.OutputText(depth, annotation + " ");
+                            output.OutputTextLine(referencedType + "  " + refname + "; ");
+                        }
+                        else
+                        {
+                            output.OutputTextLine(depth, referencedType + "  " + refname + "; //" + annotation);
+                        }
+                    }
+                    else
+                    {
+                        output.OutputTextLine(depth, referencedType + "  " + refname + ";");
+                    }
                     generatedRelationship = true;
                 }
             }
