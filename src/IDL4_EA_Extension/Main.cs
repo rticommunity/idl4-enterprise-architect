@@ -1051,40 +1051,8 @@ namespace IDL4_EA_Extension
                 return null; ;
             }
 
-
             referencedElem = repository.GetElementByID(referencedElemId);
             cardinality = referencedElemEnd.Cardinality;
-
-            /*
-            if (classElem.ElementID == conn.ClientID)
-            {
-                // We are source of relationship
-                //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude source.Aggregation: " + source.Aggregation);
-
-                if ( (source.Aggregation != 0)
-                        && ( conn.Direction.Equals("Source -> Destination") ||
-                             conn.Direction.Equals("Bi-Directional")) )
-                {
-                    //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude GetElementByID: " + conn.SupplierID);
-                    referencedElem = repository.GetElementByID(conn.SupplierID);
-                    cardinality = conn.SupplierEnd.Cardinality;
-                }
-            }
-            else
-            {
-                //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude target.Aggregation: " + target.Aggregation);
-
-                if ( (target.Aggregation != 0)
-                         && ( conn.Direction.Equals("Destination -> Source") ||
-                              conn.Direction.Equals("Bi-Directional")) )
-                {
-                    //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude GetElementByID: " + conn.ClientID);
-                    referencedElem = repository.GetElementByID(conn.ClientID);
-                    cardinality = conn.ClientEnd.Cardinality;
-                }
-            }
-            */
-
 
             if (referencedElem != null)
             {
@@ -1227,7 +1195,6 @@ namespace IDL4_EA_Extension
 
         private static bool IsElementEnum(Element elem)
         {
-            // TODO
             return elem.Type.Equals("Enumeration") || elem.Stereotype.Equals("enumeration");
         }
 
