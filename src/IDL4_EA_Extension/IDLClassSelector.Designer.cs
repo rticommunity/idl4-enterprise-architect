@@ -34,6 +34,7 @@
             this.buttonGenerate = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
             this.idlGenConfiguration = new System.Windows.Forms.GroupBox();
+            this.idlMappingDetailComboBox = new System.Windows.Forms.ComboBox();
             this.idlVersionComboBox = new System.Windows.Forms.ComboBox();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             this.tableLayoutPanel1.SuspendLayout();
@@ -117,6 +118,7 @@
             // idlGenConfiguration
             // 
             this.tableLayoutPanel1.SetColumnSpan(this.idlGenConfiguration, 2);
+            this.idlGenConfiguration.Controls.Add(this.idlMappingDetailComboBox);
             this.idlGenConfiguration.Controls.Add(this.idlVersionComboBox);
             this.idlGenConfiguration.Location = new System.Drawing.Point(3, 434);
             this.idlGenConfiguration.Name = "idlGenConfiguration";
@@ -125,6 +127,15 @@
             this.idlGenConfiguration.TabStop = false;
             this.idlGenConfiguration.Text = "Configuration";
             // 
+            // idlMappingDetailComboBox
+            // 
+            this.idlMappingDetailComboBox.FormattingEnabled = true;
+            this.idlMappingDetailComboBox.Location = new System.Drawing.Point(231, 14);
+            this.idlMappingDetailComboBox.Name = "idlMappingDetailComboBox";
+            this.idlMappingDetailComboBox.Size = new System.Drawing.Size(190, 21);
+            this.idlMappingDetailComboBox.TabIndex = 1;
+            this.idlMappingDetailComboBox.SelectedIndexChanged += new System.EventHandler(this.mappingDetail_SelectedIndexChanged);
+            // 
             // idlVersionComboBox
             // 
             this.idlVersionComboBox.FormattingEnabled = true;
@@ -132,7 +143,7 @@
             this.idlVersionComboBox.Name = "idlVersionComboBox";
             this.idlVersionComboBox.Size = new System.Drawing.Size(196, 21);
             this.idlVersionComboBox.TabIndex = 0;
-            this.idlVersionComboBox.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
+            this.idlVersionComboBox.SelectedIndexChanged += new System.EventHandler(this.idlVersion_SelectedIndexChanged);
             // 
             // IDLClassSelector
             // 
@@ -160,5 +171,6 @@
         private System.Windows.Forms.SaveFileDialog saveFileDialog1;
         private System.Windows.Forms.GroupBox idlGenConfiguration;
         private System.Windows.Forms.ComboBox idlVersionComboBox;
+        private System.Windows.Forms.ComboBox idlMappingDetailComboBox;
     }
 }

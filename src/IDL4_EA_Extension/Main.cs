@@ -44,6 +44,7 @@ namespace IDL4_EA_Extension
             _uncheckedElements = uncheckedElements;
             _classSelector = classSelector;
             this.OnIdlVersionAction(IDLVersions.defaultVersion);
+            this.OnIdlMappingDetailAction(IDLVersions.defaultMappingDetails);
         }
 
         public void OnCodegenAction()
@@ -87,10 +88,17 @@ namespace IDL4_EA_Extension
         public void OnIdlVersionAction( IDLVersion ver )
         {
             _currentOutput.Clear();
-            //_currentOutput.OutputTextLine("// IDL Version: " + ver.Value);
             
             Main.setIdlVersion(ver.Value);
         }
+
+        public void OnIdlMappingDetailAction(IDLMappingDetail detail)
+        {
+            _currentOutput.Clear();
+
+            Main.setIdlMappingDetail(detail.Value);
+        }
+
         public void OnDebugAction(string text)
         {
             _currentOutput.OutputTextLine(text);
@@ -105,6 +113,7 @@ namespace IDL4_EA_Extension
         private const String MENU_ITEM_GENERATE_XML = "Generate IDL ...";
 
         private static int idlVersion = IDLVersions.defaultVersion.Value;
+        private static int idlMappingDetail = IDLVersions.defaultMappingDetails.Value;
 
 
 
@@ -512,7 +521,10 @@ namespace IDL4_EA_Extension
 
             if ( !IsModuleRelevant(relevantModules, package, output) )
             {
-                output.OutputTextLine(depth, "// Skipping empty module: " + package.Name);
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "// Skipping empty module: \"" + package.Name + "\"");
+                }
                 return;
             }
 
@@ -792,22 +804,40 @@ namespace IDL4_EA_Extension
                 {
                     //output.OutputText(attributeDepth, "sequence<" + typeName + "> " + child.Name + ";");
                     effectiveTypeName = "sequence<" + typeName + ">";
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth, "// Mapping to unbounded sequence because (upper bound == 0)");
+                    }
+
                 }
                 else if (lower == upper)
                 {
                     if (upper != 1)  // Array
                     {
                         effectiveMemberName = child.Name + "[" + child.UpperBound + "]";
+                        if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                        {
+                            output.OutputTextLine(depth, "// Mapping to array because (lower bound == upper bound)");
+                        }
                     }
                 }
                 else if (lower == 0 && upper == 1) 
                 {
                     // Handle this the same as an @optional annotation
                     extraAnnotation = "Optional";
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth, "// Mapping to optional because (lower bound == 0 && upper bound == 1)");
+                    }
+
                 }
                 else // bounded sequence
                 {
                     effectiveTypeName = "sequence<" + typeName + "," + child.UpperBound + ">";
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth, "// Mapping to bounded sequence because (lower bound < upper bound)");
+                    }
                 }
 
                 GenIDL_AttributeWithAnnotations(child, effectiveTypeName, effectiveMemberName, extraAnnotation, output, depth);
@@ -925,6 +955,15 @@ namespace IDL4_EA_Extension
             return annotationCount;
         }
 
+        private static String GenIDL_GetReferenceName(EA.Connector conn)
+        {
+            if (conn.Name.Equals(""))
+            {
+                return "unamed_reference";
+            }
+
+            return IDL_NormalizeUserDefinedClassifierName(conn.Name);
+        }
 
         /**
          * Determines if the relationship to the referenced type is such that the referenced type
@@ -942,7 +981,7 @@ namespace IDL4_EA_Extension
             Element classElem, EA.Connector conn, TextOutputInterface output, int depth)
         {
             annotation = null;
-            refname = conn.Name;
+            refname = GenIDL_GetReferenceName(conn);
 
             // Only consider "Aggregation" relationship. Not "Association"
             string[] relevantConnectorTypes = new string[] { "Aggregation" };
@@ -955,7 +994,11 @@ namespace IDL4_EA_Extension
 
             if (!relevantConnectorTypes.Contains(conn.Type))
             {
-                output.OutputTextLine(depth, "/* Skipping " + refname + " because relationshipKind is " + conn.Type + " instead of Aggregation */"); 
+                if ( (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
+                        && (!conn.Type.Equals("Generalization")) )
+                {
+                    output.OutputTextLine(depth, "// Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation"); 
+                }
                 return null;
             }
 
@@ -984,16 +1027,21 @@ namespace IDL4_EA_Extension
                 referencedElemId = conn.ClientID;
             }
 
-
             if ( thisElemEnd.Aggregation == 0) 
             {
-                output.OutputTextLine(depth, "/* Skipping " + refname + " because end is non-aggregating */"); 
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
+                {
+                    output.OutputTextLine(depth, "// Skipping reference \"" + refname + "\" because end is non-aggregating");
+                }
                 return null;
             }
 
             if (referencedElemEnd.IsNavigable == false) 
             {
-                output.OutputTextLine(depth, "/* Skipping " + refname + " because is non-navigable */");
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC) 
+                {
+                    output.OutputTextLine(depth, "// Skipping reference \"" + refname + "\" because is non-navigable");
+                }
                 return null; ;
             }
 
@@ -1038,6 +1086,10 @@ namespace IDL4_EA_Extension
 
                 if (refname.Equals(""))
                 {
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth, "// Automatically generating name for unamed reference");
+                    }
                     refname = "ref_" + normalizedMemberType;
                 }
 
@@ -1054,11 +1106,19 @@ namespace IDL4_EA_Extension
                     {
                         annotation = "@Shared";
                     }
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth, "// Mapping to Shared because relation cardinality == 1 (or is unspecified)");
+                    }
                 }
                 else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
                 {
                     // No upper limit -> unbounded sequence
                     refTypeName = "sequence<" + refTypeName + ">";
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth, "// Mapping to unbounded sequence because relation cardinality is \"*\" (or \"..*\")");
+                    }
                 }
                 else
                 {
@@ -1068,6 +1128,11 @@ namespace IDL4_EA_Extension
                     {
                         if (upperLimit <= 0) { upperLimit = 1; }
                         refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
+                        if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                        {
+                            output.OutputTextLine(depth, "// Mapping to bounded sequence because relationship cardinality = " 
+                                                        + cardinality + " (lower bound < upper bound)");
+                        }
                     }
                     else
                     {
@@ -1076,10 +1141,20 @@ namespace IDL4_EA_Extension
                               Int32.TryParse(cardinality.Substring(limitPos + 2), out upperLimit))
                         {
                             refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
+                            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                            {
+                                output.OutputTextLine(depth, "// Mapping to bounded sequence because relationship cardinality = "
+                                                            + cardinality + " (lower bound < upper bound)");
+                            }
                         }
                         else
                         {
                             refTypeName = "sequence<" + refTypeName + ">";
+                            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                            {
+                                output.OutputTextLine(depth, "// Mapping to unbounded sequence because relationship cardinality = "
+                                                            + cardinality);
+                            }
                         }
                     }
                 }
@@ -1096,8 +1171,6 @@ namespace IDL4_EA_Extension
 
             foreach (EA.Connector conn in classElem.Connectors)
             {
-                //output.OutputTextLine("GenIDL_Relations: Connector: " + conn.Name);
-
                 String annotation = null;
                 String refname = null;
                 String referencedType = GenIDL_GetReferencedTypeToInclude(out annotation, out refname, repository, classElem, conn, output, depth);
@@ -1337,7 +1410,7 @@ namespace IDL4_EA_Extension
                         Element referencedElem = repository.GetElementByID(referencedElemId);
                         output.OutputText("    ( \"" + GenIDL_GetFullPackageName(repository, classElem) + "\" , \"" + classElem.Name + "\" )");
                         output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, referencedElem) + "\" , \"" + referencedElem.Name + "\" )");
-                        output.OutputTextLine("   dependency:  aggregation \"" + conn.Name + "\"");
+                        output.OutputTextLine("   dependency:  aggregation \"" + GenIDL_GetReferenceName(conn) + "\"");
                     }
  
                     return false;
@@ -1573,5 +1646,11 @@ namespace IDL4_EA_Extension
         {
             Main.idlVersion = p;
         }
+
+        internal static void setIdlMappingDetail(int p)
+        {
+            Main.idlMappingDetail = p;
+        }
+
     }
 }

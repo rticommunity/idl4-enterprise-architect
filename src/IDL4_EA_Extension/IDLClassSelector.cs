@@ -29,9 +29,14 @@ namespace IDL4_EA_Extension
             _actionInterface = actionInterface;
             InitializeComponent();
             IDLVersions idlVersions = new IDLVersions();
+
             idlVersionComboBox.DataSource = idlVersions.getVersionList();            
             idlVersionComboBox.DisplayMember = "Name";
             idlVersionComboBox.ValueMember = "Name";
+
+            idlMappingDetailComboBox.DataSource = idlVersions.getMappingDetailList();
+            idlMappingDetailComboBox.DisplayMember = "Name";
+            idlMappingDetailComboBox.ValueMember = "Name";
         }
 
         public TreeView getTreeView()
@@ -73,10 +78,18 @@ namespace IDL4_EA_Extension
             _actionInterface.OnCheckAction(e.Node);
         }
 
-        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        private void idlVersion_SelectedIndexChanged(object sender, EventArgs e)
         {
             ComboBox cb = (ComboBox)sender;
             _actionInterface.OnIdlVersionAction((IDLVersion)cb.SelectedItem);
+            TreeNode sel = treeViewModelElements.SelectedNode;
+            if (sel != null) _actionInterface.OnSelectAction(sel);
+        }
+
+        private void mappingDetail_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ComboBox cb = (ComboBox)sender;
+            _actionInterface.OnIdlMappingDetailAction((IDLMappingDetail)cb.SelectedItem);
             TreeNode sel = treeViewModelElements.SelectedNode;
             if (sel != null) _actionInterface.OnSelectAction(sel);
         }
@@ -92,17 +105,38 @@ namespace IDL4_EA_Extension
         public int Value { get; set; }
     }
 
+    public class IDLMappingDetail
+    {
+        public const int IDL_DETAILS_NONE   = 0;
+        public const int IDL_DETAILS_BASIC  = 1;
+        public const int IDL_DETAILS_FULL   = 2;
+
+        public string Name { get; set; }
+        public int Value { get; set; }
+    }
+
 
     public class IDLVersions 
     {
         List<IDLVersion> _versions;
+        List<IDLMappingDetail> _mappingDetails;
+
         public static IDLVersion defaultVersion =
             new IDLVersion { Name = "IDL v3.5 (RTI Connext 5.2)", Value = IDLVersion.IDL_V350_CONNEXT52 };
 
+        public static IDLMappingDetail defaultMappingDetails =
+            new IDLMappingDetail { Name = "IDL Mapping Details - Suppressed", Value = IDLMappingDetail.IDL_DETAILS_NONE };
+       
         public List<IDLVersion> getVersionList()
         {
             return _versions;
         }
+
+        public List<IDLMappingDetail> getMappingDetailList()
+        {
+            return _mappingDetails;
+        }
+
 
         public IDLVersions()
         {
@@ -110,6 +144,11 @@ namespace IDL4_EA_Extension
             _versions.Add(new IDLVersion { Name = "IDL v3.5  +  RTI Connext DDS 5.2", Value = IDLVersion.IDL_V350_CONNEXT52 });
             _versions.Add(new IDLVersion { Name = "IDL v3.5  +  DDS-XTYPES 1.0", Value = IDLVersion.IDL_V350_XTYPES });
             _versions.Add(new IDLVersion { Name = "IDL v4.0", Value = IDLVersion.IDL_V400 });
+
+            _mappingDetails = new List<IDLMappingDetail>();
+            _mappingDetails.Add(new IDLMappingDetail { Name = "IDL Mapping Details - Suppressed", Value = IDLMappingDetail.IDL_DETAILS_NONE });
+            _mappingDetails.Add(new IDLMappingDetail { Name = "IDL Mapping Details - Basic", Value = IDLMappingDetail.IDL_DETAILS_BASIC });
+            _mappingDetails.Add(new IDLMappingDetail { Name = "IDL Mapping Details - Full", Value = IDLMappingDetail.IDL_DETAILS_FULL });
         }
     }  
 }
