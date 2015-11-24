@@ -529,7 +529,7 @@ namespace IDL4_EA_Extension
             {
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                 {
-                    output.OutputTextLine(depth, "// Skipping empty module: \"" + package.Name + "\"");
+                    output.OutputTextLine(depth, "/* Skipping empty module: \"" + package.Name + "\" */");
                 }
                 return;
             }
@@ -932,8 +932,10 @@ namespace IDL4_EA_Extension
          */ 
         private static int GenIDL_AttributeAnnotations(EA.Attribute child, TextOutputInterface output, int depth)
         {
+            string keyAnnotation = "Key";
             string[] relevantAnnotationsNoValue = new string[] {
-                    "Key", "must_understand",
+                    keyAnnotation,
+                    "must_understand",
                     "autoid", "Optional",
                     "external", "nested",
                     "oneway", "ami"
@@ -942,21 +944,56 @@ namespace IDL4_EA_Extension
                     "ID", "Value"
                 };
 
+            string ddsTag = "DDS";
+
+            Boolean mappedToKey = false;
             int annotationCount = 0;
+
             foreach (AttributeTag tag in child.TaggedValues)
             {
                 String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+
+                // Accept the TagName DDS as an alternative way to provide an accepted no value annotation
+                // So {Tag, Value} = {"DDS", "XYZ"} is equivalent to {"XYZ", }
+                if (normalizedAnnotation.Equals(ddsTag))
+                {
+                    normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Value);
+                } 
+                
                 if (relevantAnnotationsNoValue.Contains(normalizedAnnotation))
                 {
                     GenIDL_Annotation(normalizedAnnotation, annotationCount==0, output, depth);
                     ++annotationCount;
+                    if ( normalizedAnnotation.Equals(keyAnnotation) ) {
+                        mappedToKey = true;
+                    }
                 }
                 else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
                 {
-                    GenIDL_Annotation(normalizedAnnotation, tag.Value, annotationCount==0, output, depth);
+                    GenIDL_Annotation(normalizedAnnotation, tag.Value, annotationCount == 0, output, depth);
                     ++annotationCount;
                 }
+                else
+                {
+                    if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL))
+                    {
+                        output.OutputTextLine(depth, "/* Skipping unkown annotation name:\"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
+                    }
+                }
             }
+
+            // Accept the attributes marked as ID as being "Key"
+            if ( (!mappedToKey) && child.IsID )
+            {
+                mappedToKey = true;
+                GenIDL_Annotation(keyAnnotation, annotationCount == 0, output, depth);
+                ++annotationCount;
+                if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL))
+                {
+                    output.OutputTextLine(depth, "/* Mapping to @Key because attribute has the IsID property set */");
+                }
+            }
+
 
             return annotationCount;
         }
@@ -1003,7 +1040,7 @@ namespace IDL4_EA_Extension
                 if ( (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
                         && (!conn.Type.Equals("Generalization")) )
                 {
-                    output.OutputTextLine(depth, "// Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation"); 
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation */"); 
                 }
                 return null;
             }
@@ -1046,7 +1083,7 @@ namespace IDL4_EA_Extension
             {
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC) 
                 {
-                    output.OutputTextLine(depth, "// Skipping reference \"" + refname + "\" because is non-navigable");
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because is non-navigable */");
                 }
                 return null; ;
             }
@@ -1469,10 +1506,20 @@ namespace IDL4_EA_Extension
                 "Extensibility", "verbatim"
             };
 
+            string ddsTag = "DDS";
+
             int annotationCount = 0;
             foreach (TaggedValue tag in classElem.TaggedValues)
             {
-                String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name.ToLower());
+                String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+
+                // Accept the TagName DDS as an alternative way to provide an accepted no value annotation
+                // So {Tag, Value} = {"DDS", "XYZ"} is equivalent to {"XYZ", }
+                if (normalizedAnnotation.Equals(ddsTag))
+                {
+                    normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Value);
+                }
+
                 if (relevantAnnotationsNoValue.Contains(normalizedAnnotation))
                 {
                     GenIDL_Annotation(normalizedAnnotation, annotationCount == 0, output, depth);
@@ -1481,9 +1528,16 @@ namespace IDL4_EA_Extension
                 }
                 else if (relevantAnnotationsWithValue.Contains(normalizedAnnotation))
                 {
-                    GenIDL_Annotation(normalizedAnnotation, tag.Value, annotationCount==0, output, depth);
+                    GenIDL_Annotation(normalizedAnnotation, tag.Value, annotationCount == 0, output, depth);
                     output.OutputTextLine();
                     ++annotationCount;
+                }
+                else
+                {
+                    if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL))
+                    {
+                        output.OutputTextLine(depth, "/* Skipping unkown annotation name:\"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
+                    }
                 }
             }
 
@@ -1569,7 +1623,8 @@ namespace IDL4_EA_Extension
         private static readonly string[] onewayAnnotation = new string[] { "oneway" };
         private static readonly string[] amiAnnotation = new string[]   { "ami" };
 
-
+        // Not strictly a IDL3.5, 4, or XTYPES annotation but something users do sometimes 
+        private static readonly string[] ddsAnnotation = new string[] { "DDS", "dds" };
 
         private static readonly string[][] builtinAnnotationVariations = {
             keyAnnotation, mustUnderstandAnnotation,
@@ -1578,7 +1633,8 @@ namespace IDL4_EA_Extension
             defaultAnnotation, rangeAnnotation, minAnnotation, maxAnnotation, unitAnnotation,
             bitBoundAnnotation, externalAnnotation, nestedAnnotation,
             verbatimAnnotation,
-            serviceAnnotation, onewayAnnotation, amiAnnotation
+            serviceAnnotation, onewayAnnotation, amiAnnotation,
+            ddsAnnotation
         };
 
         /** Normalizes an annotation type name converting it into a legal IDL4 / Connext DDS annotation.
