@@ -1074,7 +1074,7 @@ namespace IDL4_EA_Extension
             {
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
                 {
-                    output.OutputTextLine(depth, "// Skipping reference \"" + refname + "\" because end is non-aggregating");
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because end is non-aggregating */");
                 }
                 return null;
             }
@@ -1099,7 +1099,7 @@ namespace IDL4_EA_Extension
                 {
                     if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                     {
-                        output.OutputTextLine(depth, "// Automatically generating name for unamed reference");
+                        output.OutputTextLine(depth, "/* Automatically generating name for unamed reference */");
                     }
                     refname = "ref_" + normalizedMemberType;
                 }
@@ -1119,7 +1119,7 @@ namespace IDL4_EA_Extension
                     }
                     if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                     {
-                        output.OutputTextLine(depth, "// Mapping to Shared because relation cardinality == 1 (or is unspecified)");
+                        output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality == 1 (or is unspecified) */");
                     }
                 }
                 else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
@@ -1128,7 +1128,7 @@ namespace IDL4_EA_Extension
                     refTypeName = "sequence<" + refTypeName + ">";
                     if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                     {
-                        output.OutputTextLine(depth, "// Mapping to unbounded sequence because relation cardinality is \"*\" (or \"..*\")");
+                        output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relation cardinality is \"*\" (or \"..*\") */");
                     }
                 }
                 else
@@ -1141,8 +1141,8 @@ namespace IDL4_EA_Extension
                         refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
                         if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                         {
-                            output.OutputTextLine(depth, "// Mapping to bounded sequence because relationship cardinality = " 
-                                                        + cardinality + " (lower bound < upper bound)");
+                            output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = " 
+                                                        + cardinality + " (lower bound < upper bound) */");
                         }
                     }
                     else
@@ -1154,8 +1154,8 @@ namespace IDL4_EA_Extension
                             refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
                             if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                             {
-                                output.OutputTextLine(depth, "// Mapping to bounded sequence because relationship cardinality = "
-                                                            + cardinality + " (lower bound < upper bound)");
+                                output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = "
+                                                            + cardinality + " (lower bound < upper bound) */");
                             }
                         }
                         else
@@ -1163,8 +1163,8 @@ namespace IDL4_EA_Extension
                             refTypeName = "sequence<" + refTypeName + ">";
                             if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                             {
-                                output.OutputTextLine(depth, "// Mapping to unbounded sequence because relationship cardinality = "
-                                                            + cardinality);
+                                output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relationship cardinality = "
+                                                            + cardinality + " */");
                             }
                         }
                     }
