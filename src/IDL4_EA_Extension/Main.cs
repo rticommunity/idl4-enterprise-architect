@@ -1027,7 +1027,7 @@ namespace IDL4_EA_Extension
             refname = GenIDL_GetReferenceName(conn);
 
             // Only consider "Aggregation" relationship. Not "Association"
-            string[] relevantConnectorTypes = new string[] { "Aggregation" };
+            string[] relevantConnectorTypes = new string[] { "Association", "Aggregation" };
 
 
             //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude name: " + refname + " type: " + conn.Type
@@ -1040,7 +1040,7 @@ namespace IDL4_EA_Extension
                 if ( (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
                         && (!conn.Type.Equals("Generalization")) )
                 {
-                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation */"); 
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation or Association */"); 
                 }
                 return null;
             }
@@ -1068,6 +1068,17 @@ namespace IDL4_EA_Extension
                 thisElemEnd = conn.SupplierEnd;
                 referencedElemEnd = conn.ClientEnd;
                 referencedElemId = conn.ClientID;
+            }
+
+            if (conn.Type.Equals("Association") && !referencedElemEnd.Containment.Equals("Value"))
+            {
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
+                {
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname 
+                        + "\" because it is 'Association' but containment type is '"  +referencedElemEnd.Containment 
+                        +"' instead of 'Value' */");
+                }
+                return null;
             }
 
             if ( thisElemEnd.Aggregation == 0) 
