@@ -496,9 +496,76 @@ namespace IDL4_EA_Extension
             }
         }
 
+        private static bool IsXSDSimpleType(Element classElem)
+        {
+            //TODO: This is a very simplistic criteria. May need to be enhanced
+            // See: http://sparxsystems.com/forums/smf/index.php/topic,30258.0.html
+
+            return classElem.Genlinks.IndexOf("Parent=") != -1;
+        }
+ 
+        private static readonly string[] xsd_longTypes      = new string[] { "long", "int", "integer", "decimal", "negativeInteger", "nonPositiveInteger", };
+        private static readonly string[] xsd_ulongTypes     = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
+        private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
+        private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte" };
+        private static readonly string[] xsd_stringTypes    = new string[] { "string", "normalizedString", "hexBinary", "base64Binary"  };
+        private static readonly string[][] xsd_primtiveTypeVariations = {
+                xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes 
+            };
+
+        private static String IDL_XSDprimitive2IDLprimitive(String xsdPrimitiveType)
+        {
+            for (int typeFamily = 0; typeFamily < xsd_primtiveTypeVariations.GetLength(0); ++typeFamily)
+            {
+                if (xsd_primtiveTypeVariations[typeFamily].Contains(xsdPrimitiveType))
+                {
+                    return xsd_primtiveTypeVariations[typeFamily][0];
+                }
+            }
+            
+            return xsdPrimitiveType;
+        }
+
         private static void GenIDL_ClassTypedef(Element classElem, TextOutputInterface output, int depth)
         {
-            output.OutputTextLine(depth, "struct " + IDL_NormalizeUserDefinedClassifierName(classElem.Name + ";"));
+
+            // output.OutputTextLine(depth, "// Debug Genlinks: " + classElem.Genlinks);
+            // output.OutputTextLine(depth, "// Debug EmbeddedElements count: " + classElem.EmbeddedElements.Count);
+
+            // Look to see if this class is just an alias for another as would happen for an xsd:simpleType
+            if ( !IsXSDSimpleType(classElem) ) {
+                output.OutputTextLine(depth, "struct " + IDL_NormalizeUserDefinedClassifierName(classElem.Name) + ";");
+                return;
+            }
+
+            // Else it is a XSD simpleType. Find the baswe type and generate a typedef for it
+            String genLinks = classElem.Genlinks;
+            String genLinksBaseClass = null;
+            if (genLinks != null)
+            {
+                String parentIdentifier = "Parent=";
+                int parentBeginIndex = genLinks.IndexOf(parentIdentifier);
+
+                if (parentBeginIndex >= 0)
+                {
+                    parentBeginIndex += parentIdentifier.Length;
+                    int parentEndIndex = genLinks.IndexOf(";", parentBeginIndex);
+                    if (parentEndIndex < 0)
+                    {
+                        parentEndIndex = genLinks.Length;
+                    }
+
+                    genLinksBaseClass = genLinks.Substring(parentBeginIndex, parentEndIndex - parentBeginIndex);
+                }
+            }
+
+            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+            {
+                output.OutputTextLine(depth, "/* Mapping to typeded because generated links are: " + genLinks + " */");
+            }
+            String primitiveIDLType = IDL_XSDprimitive2IDLprimitive(genLinksBaseClass);
+            output.OutputTextLine(depth, "typedef " + primitiveIDLType + " " + IDL_NormalizeUserDefinedClassifierName(classElem.Name) + ";");
+            return;
         }
 
         /** Generate IDL4 module corresponding to the UML package
@@ -779,7 +846,6 @@ namespace IDL4_EA_Extension
                 return false;
             }
 
-
             foreach (EA.Attribute child in classElem.Attributes)
             {
                 // This does not get the fully qualified type name. We need that to fully resolve
@@ -798,8 +864,14 @@ namespace IDL4_EA_Extension
                         + IDL_NormalizeMemberTypeName(attributeType.Name);
                 }
 
-                int lower  = Convert.ToInt32(child.LowerBound);
-                int upper = Convert.ToInt32(child.UpperBound);
+                int lower  = 0;
+                int upper  = 0;
+                try {
+                    lower = Convert.ToInt32(child.LowerBound);
+                } catch (Exception) {}
+                try {
+                    upper = Convert.ToInt32(child.UpperBound);
+                } catch (Exception) { }
 
                 int attributeDepth = depth;
  
@@ -1037,10 +1109,17 @@ namespace IDL4_EA_Extension
 
             if (!relevantConnectorTypes.Contains(conn.Type))
             {
-                if ( (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
-                        && (!conn.Type.Equals("Generalization")) )
+                if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
+                        && (!conn.Type.Equals("Generalization")))
                 {
-                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation or Association */"); 
+                    if (conn.Type.Equals("Generalization"))
+                    {
+                        output.OutputTextLine(depth, "/* Warning: Skipping generalization \"" + refname + " */");
+                    }
+                    else
+                    {
+                        output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation or Association */");
+                    }
                 }
                 return null;
             }
@@ -1456,7 +1535,15 @@ namespace IDL4_EA_Extension
         private static void GenIDL_Class(Repository repository, Element classElem,
             TextOutputInterface output, int depth, 
             HashSet<String> uncheckedElem, String elementPath)
-        {               
+        {
+            // Check if this was a XSD simpleType if so there is nothing to do because we already generated
+            // a typedef for it...
+            if (IsXSDSimpleType(classElem))
+            {
+                return;
+            }
+
+            String className = IDL_NormalizeUserDefinedClassifierName(classElem.Name);
             String baseClassName = null;
             if (classElem.BaseClasses.Count > 0)
             {
@@ -1464,9 +1551,14 @@ namespace IDL4_EA_Extension
                 Element elem = (Element)obj;
                 baseClassName = GenIDL_GetFullPackageName(repository, elem) 
                     + IDL_NormalizeUserDefinedClassifierName(elem.Name);
-            }
 
-            String className = IDL_NormalizeUserDefinedClassifierName(classElem.Name);
+                if (baseClassName == null)
+                {
+                    output.OutputText(depth, "/* Warning: empty base class ommitted for " + classElem.Name + "*/");
+                }
+            }
+            
+
             
             // In IDL4 and higher annotations are before the class
             if  (idlVersion >= IDLVersion.IDL_V400) {
@@ -1489,7 +1581,7 @@ namespace IDL4_EA_Extension
             {
                 emptyClassContent = false;
             }
-            
+
             if (emptyClassContent)
             {
                 GenIDL_EmptyClassContent(className, output, depth + 1);
