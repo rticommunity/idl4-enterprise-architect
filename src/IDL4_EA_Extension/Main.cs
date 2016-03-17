@@ -23,9 +23,9 @@ using System.Text.RegularExpressions;
 
 /* For the Sparx Automation APIs see:
  * http://bellekens.com/2011/01/29/tutorial-create-your-first-c-enterprise-architect-addin-in-10-minutes/
- * https://alexatnet.com/articles/creating-addin-for-sparx-enterprise-architect 
- * http://blog.sparxsystems.eu/2015/05/the-enterprise-architect-object-model-ea-api/ 
- * http://bellekens.com/writing-ea-add-ins/ 
+ * https://alexatnet.com/articles/creating-addin-for-sparx-enterprise-architect
+ * http://blog.sparxsystems.eu/2015/05/the-enterprise-architect-object-model-ea-api/
+ * http://bellekens.com/writing-ea-add-ins/
  */
 
 using System.Runtime.InteropServices;
@@ -94,7 +94,7 @@ namespace IDL4_EA_Extension
         public void OnIdlVersionAction( IDLVersion ver )
         {
             _currentOutput.Clear();
-            
+
             Main.setIdlVersion(ver.Value);
         }
 
@@ -112,7 +112,7 @@ namespace IDL4_EA_Extension
     }
 
     [ComVisible(true)]
-    public class Main 
+    public class Main
     {
 
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
@@ -199,7 +199,7 @@ namespace IDL4_EA_Extension
                    // GenerateIDL(repository, output);
 
                     PopulateClassSelector(idlClassSelector, repository);
-                    idlClassSelector.Text = "IDL4 (RTI Connext DDS) - Select classes for IDL generation"; 
+                    idlClassSelector.Text = "IDL4 (RTI Connext DDS) - Select classes for IDL generation";
                     idlClassSelector.Show();
                     //idlGenAction.OnCodegenAction();
                     break;
@@ -240,7 +240,7 @@ namespace IDL4_EA_Extension
                     classNode.Checked = true;
                     packageNode.Nodes.Add(classNode);
                 }
-            } 
+            }
 
             foreach (Package p in package.Packages)
             {
@@ -250,7 +250,7 @@ namespace IDL4_EA_Extension
 
         /** Finds a child of an EA Model element capturing exceptions raised if the child is not
          * found.
-         * 
+         *
          */
         private static Object EAUtil_FindChild(EA.Collection collection, String childName)
         {
@@ -263,7 +263,7 @@ namespace IDL4_EA_Extension
             return child;
         }
 
-        internal static void GenIDL_Preview(Repository repository, TextOutputInterface output, 
+        internal static void GenIDL_Preview(Repository repository, TextOutputInterface output,
             HashSet<string> uncheckedElem, String fullPath)
         {
             char[] delimiterChars = { '\\'};
@@ -349,7 +349,7 @@ namespace IDL4_EA_Extension
          */
         private static void GenIDL_PrebuiltUMLTypes(TextOutputInterface output)
         {
-            String builtinTypes = 
+            String builtinTypes =
                 "struct dateTime { long date; long time; };";
             output.OutputTextLine(builtinTypes);
         }
@@ -370,7 +370,7 @@ namespace IDL4_EA_Extension
             // moduleRelevance holds the modules relevant for IDL generation
             Dictionary<long, bool> moduleRelevance = new Dictionary<long, bool>();
 
-            // completedClasses holds the classes for which code has been completele generated
+            // completedClasses holds the classes for which code has been completely generated
             // such that we can generate code that depends on these classes
             HashSet<long> completedClasses = new HashSet<long>();
 
@@ -431,7 +431,7 @@ namespace IDL4_EA_Extension
             if (notGeneratedClassCount > 0 )
             {
                 output.OutputTextLine("/* WARNING: " + notGeneratedClassCount + " classes could not be generated due to circular dependencies */");
-                GenIDL_ReportUngeneratedClasses(repository, output, 0, uncheckedElem, moduleRelevance, completedClasses);         
+                GenIDL_ReportUngeneratedClasses(repository, output, 0, uncheckedElem, moduleRelevance, completedClasses);
             }
         }
 
@@ -448,7 +448,7 @@ namespace IDL4_EA_Extension
             {
                 if (uncheckedElem.Contains(model.Name))
                 {
-                    // if unckecked skip this model
+                    // if unchecked skip this model
                     continue;
                 }
 
@@ -465,7 +465,7 @@ namespace IDL4_EA_Extension
             TextOutputInterface output, int depth, String pathToElem,
             HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
         {
-            // if unckecked skip this model
+            // if unchecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
             if (IsElementUnchecked(uncheckedElem, packageFullName))
             {
@@ -482,7 +482,7 @@ namespace IDL4_EA_Extension
             {
                 if (!IsElementEnum(e))
                 {
-                    if ( ( completedClasses.Contains(e.ElementID) == false ) 
+                    if ( ( completedClasses.Contains(e.ElementID) == false )
                         && GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null) )
                     {
                         GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses, true);
@@ -503,14 +503,14 @@ namespace IDL4_EA_Extension
 
             return classElem.Genlinks.IndexOf("Parent=") != -1;
         }
- 
+
         private static readonly string[] xsd_longTypes      = new string[] { "long", "int", "integer", "decimal", "negativeInteger", "nonPositiveInteger", };
         private static readonly string[] xsd_ulongTypes     = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
         private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
         private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte" };
         private static readonly string[] xsd_stringTypes    = new string[] { "string", "normalizedString", "hexBinary", "base64Binary"  };
         private static readonly string[][] xsd_primtiveTypeVariations = {
-                xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes 
+                xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
             };
 
         private static String IDL_XSDprimitive2IDLprimitive(String xsdPrimitiveType)
@@ -522,7 +522,7 @@ namespace IDL4_EA_Extension
                     return xsd_primtiveTypeVariations[typeFamily][0];
                 }
             }
-            
+
             return xsdPrimitiveType;
         }
 
@@ -538,7 +538,7 @@ namespace IDL4_EA_Extension
                 return;
             }
 
-            // Else it is a XSD simpleType. Find the baswe type and generate a typedef for it
+            // Else it is a XSD simpleType. Find the base type and generate a typedef for it
             String genLinks = classElem.Genlinks;
             String genLinksBaseClass = null;
             if (genLinks != null)
@@ -561,7 +561,7 @@ namespace IDL4_EA_Extension
 
             if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
             {
-                output.OutputTextLine(depth, "/* Mapping to typeded because generated links are: " + genLinks + " */");
+                output.OutputTextLine(depth, "/* Mapping to typedef because generated links are: " + genLinks + " */");
             }
             String primitiveIDLType = IDL_XSDprimitive2IDLprimitive(genLinksBaseClass);
             output.OutputTextLine(depth, "typedef " + primitiveIDLType + " " + IDL_NormalizeUserDefinedClassifierName(classElem.Name) + ";");
@@ -569,16 +569,16 @@ namespace IDL4_EA_Extension
         }
 
         /** Generate IDL4 module corresponding to the UML package
-         * 
+         *
          *  This function is the first-pass module generation. It generates the things that
-         *  have no dependiencies on anything else and help resilve depenedencies for the types
+         *  have no dependencies on anything else and help resolve dependencies for the types
          *  that depend on this module. These are:
-         *  
+         *
          *  enums
          *  typedefs for all structures defined in the module.
-         *  
-         *  This function is recursive. It generates IDl for all the nested UML packages as well
-         *  
+         *
+         *  This function is recursive. It generates IDL for all the nested UML packages as well
+         *
          *
          */
         private static void GenIDL_ModuleFirstPass(Repository repository, Package package, bool forceSelection,
@@ -604,7 +604,7 @@ namespace IDL4_EA_Extension
             String moduleName = IDL_NormalizeUserDefinedClassifierName(package.Name);
             bool emptyModuleContent = true;
             output.OutputTextLine(depth, "module " + moduleName + " {");
- 
+
             foreach (Element e in package.Elements)
             {
                 if (IsElementUnchecked(uncheckedElem, packageFullName, e.Name))
@@ -646,24 +646,24 @@ namespace IDL4_EA_Extension
         }
 
         /** Generate IDL4 module corresponding to the UML package
-         * 
-         *  This function is recursive. It generates IDl for all the nested UML packages and classes
-         *  
+         *
+         *  This function is recursive. It generates IDL for all the nested UML packages and classes
+         *
          * Returns the number of classes for which IDL could not be generated due to dependencies.
-         * 
+         *
          * The IDL for a class "C" can only be generated if we have already generated the IDL for all
-         * the classes "C" depends on. This is detemined by the return of the function:
+         * the classes "C" depends on. This is determined by the return of the function:
          * GenIDL_DependenciesAlreadyGenerated()
-         * 
-         * A return of "0" indicates there were no revevant classes for which the IDL could not be 
+         *
+         * A return of "0" indicates there were no relevant classes for which the IDL could not be
          * generated. That is, the IDL generation is complete.
-         * 
+         *
          * A return >0 indicates IDL generation is not complete. In this case the GenIDL_ModuleSecondPass()
-         * could be called again to generate additional classes that may have had their dependendant
-         * clases generated in the previous pass. 
-         * 
-         * If two succesive calls to GenIDL_ModuleSecondPass() return the same value. That is, no progress
-         * was made in on pass, this indicates there is a cyclic dependency that cannot be resolved. 
+         * could be called again to generate additional classes that may have had their dependent
+         * classes generated in the previous pass.
+         *
+         * If two successive calls to GenIDL_ModuleSecondPass() return the same value. That is, no progress
+         * was made in on pass, this indicates there is a cyclic dependency that cannot be resolved.
          * In this case the strategy is to report the error so the user can break the dependency by, for example,
          * declaring on of the dependencies in the link as "@Shared"
          */
@@ -676,8 +676,8 @@ namespace IDL4_EA_Extension
 
             // if unckecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
-            if ( (!forceSelection) && IsElementUnchecked(uncheckedElem, packageFullName) ) 
-            {   
+            if ( (!forceSelection) && IsElementUnchecked(uncheckedElem, packageFullName) )
+            {
                 return 0;
             }
 
@@ -695,7 +695,7 @@ namespace IDL4_EA_Extension
 
             int moduleOutputPosition = output.GetCurrentPosition();
             output.OutputTextLine(depth, "module " + moduleName + " {");
-           
+
             foreach (Element e in package.Elements)
             {
                 // Skip Enum as they are generated on the first pass
@@ -716,10 +716,10 @@ namespace IDL4_EA_Extension
                     }
                 }
             }
-            
+
             foreach (Package p in package.Packages)
             {
-                int subModuleGeneratedItemCount; 
+                int subModuleGeneratedItemCount;
                 int submoduleNonGenClassCount = GenIDL_ModuleSecondPass(repository, p, false,
                     output, depth + 1, packageFullName,
                     out subModuleGeneratedItemCount, uncheckedElem, relevantModules, completedClasses);
@@ -753,11 +753,11 @@ namespace IDL4_EA_Extension
         private static void GenIDL_EnumLiterals(Repository repository, String enumName, Element enumElem, TextOutputInterface output, int depth)
         {
             short childCount = enumElem.Attributes.Count;
-            for (short i = 0 ; i < childCount; ++i ) 
+            for (short i = 0 ; i < childCount; ++i )
             {
                 EA.Attribute child = enumElem.Attributes.GetAt(i);
                 // String typeName = IDL_NormalizeMemberTypeName(child.Type);
- 
+
                 // Handle enumeration values. The "default value set in UML takes precedence
                 // if not then look at the tag Value
                 int value;
@@ -783,14 +783,14 @@ namespace IDL4_EA_Extension
                     }
                 }
 
-                if ( (idlVersion >= IDLVersion.IDL_V400) && (valueAnnotation != null) ) 
+                if ( (idlVersion >= IDLVersion.IDL_V400) && (valueAnnotation != null) )
                 {
                     GenIDL_Annotation("Value", valueAnnotation, true, output, depth);
                 }
 
                 output.OutputText(depth, enumName + "_" + child.Name);
 
-                if ((idlVersion == IDLVersion.IDL_V350_CONNEXT52) && (valueAnnotation != null)) 
+                if ((idlVersion == IDLVersion.IDL_V350_CONNEXT52) && (valueAnnotation != null))
                 {
                     output.OutputText(" = " + valueAnnotation);
                 }
@@ -799,7 +799,7 @@ namespace IDL4_EA_Extension
                     output.OutputText(",");
                 }
 
-                if ((idlVersion == IDLVersion.IDL_V350_XTYPES) && (valueAnnotation != null)) 
+                if ((idlVersion == IDLVersion.IDL_V350_XTYPES) && (valueAnnotation != null))
                 {
                     GenIDL_Annotation("Value", valueAnnotation, true, output, depth);
                 }
@@ -827,17 +827,17 @@ namespace IDL4_EA_Extension
         }
 
         /* Generate the IDL for an attribute.
-         * The atribute can appear by itself, a sequence, or an array.
-         * The determinaton of this is based on the settings of LowerBound and UpperBound
-         *    
+         * The attribute can appear by itself, a sequence, or an array.
+         * The determination of this is based on the settings of LowerBound and UpperBound
+         *
          *    UpperBound == 0                 ==>  Unbounded Sequence
          *    LowerBound == UpperBound == 1        ==>  Single member (no Array/Sequence)
          *    LowerBound == 0 && UpperBound == 1   ==>  Optional single member
-         *    
+         *
          *    LowerBound  < UpperBound  (other values)    ==>  Bounded Sequence
          *    LowerBound == UpperBound  (other values)    == > Array
-         *    
-         * returns true if it outputs some attribute; otherwise returns false 
+         *
+         * returns true if it outputs some attribute; otherwise returns false
          */
         private static bool GenIDL_Attributes(Repository repository, Element classElem, TextOutputInterface output, int depth)
         {
@@ -851,7 +851,7 @@ namespace IDL4_EA_Extension
                 // This does not get the fully qualified type name. We need that to fully resolve
                 // the type in the IDL...
                 String typeName;
-                
+
                 /* This code was trying to get the fully-qualified name but it throws an exception
                  */
                 if ( child.ClassifierID == 0 ) {
@@ -860,7 +860,7 @@ namespace IDL4_EA_Extension
                 else {
                     Element attributeType = repository.GetElementByID(child.ClassifierID);
                     Package attributePackage = repository.GetPackageByID(attributeType.PackageID);
-                    typeName = GenIDL_GetFullPackageName(repository, attributeType) 
+                    typeName = GenIDL_GetFullPackageName(repository, attributeType)
                         + IDL_NormalizeMemberTypeName(attributeType.Name);
                 }
 
@@ -874,7 +874,7 @@ namespace IDL4_EA_Extension
                 } catch (Exception) { }
 
                 int attributeDepth = depth;
- 
+
                 String effectiveTypeName   = typeName;
                 String effectiveMemberName = child.Name;
                 String extraAnnotation = null;
@@ -899,7 +899,7 @@ namespace IDL4_EA_Extension
                         }
                     }
                 }
-                else if (lower == 0 && upper == 1) 
+                else if (lower == 0 && upper == 1)
                 {
                     // Handle this the same as an @optional annotation
                     extraAnnotation = "Optional";
@@ -926,7 +926,7 @@ namespace IDL4_EA_Extension
         }
 
         private static void GenIDL_AttributeWithAnnotations(EA.Attribute child,
-            String effectiveType, String effectiveName, String extraAnnotation, 
+            String effectiveType, String effectiveName, String extraAnnotation,
             TextOutputInterface output, int depth)
         {
             int annotationCount = 0;
@@ -985,7 +985,7 @@ namespace IDL4_EA_Extension
                 if (firstAnnotation)
                 {
                     output.OutputText("  //@" + annotationName);
-                } 
+                }
                 else {
                     output.OutputTextLine();
                     output.OutputText(depth, "    //@" + annotationName);
@@ -998,10 +998,10 @@ namespace IDL4_EA_Extension
             }
         }
 
-        /** Outputs the annovations associated with the attribute
-         * 
+        /** Outputs the annotations associated with the attribute
+         *
          * Returns the number of annotations printed
-         */ 
+         */
         private static int GenIDL_AttributeAnnotations(EA.Attribute child, TextOutputInterface output, int depth)
         {
             string keyAnnotation = "Key";
@@ -1030,8 +1030,8 @@ namespace IDL4_EA_Extension
                 if (normalizedAnnotation.Equals(ddsTag))
                 {
                     normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Value);
-                } 
-                
+                }
+
                 if (relevantAnnotationsNoValue.Contains(normalizedAnnotation))
                 {
                     GenIDL_Annotation(normalizedAnnotation, annotationCount==0, output, depth);
@@ -1083,11 +1083,11 @@ namespace IDL4_EA_Extension
         /**
          * Determines if the relationship to the referenced type is such that the referenced type
          * should be included as part of the referencing type.
-         * 
+         *
          * Returns the fully qualified normalized name for the referenced type in case it needs to be included
          * and null if it does need to be included.
-         * 
-         * Currently we include the referenced type if an only if the relationsip is of type "Aggregation" and it is
+         *
+         * Currently we include the referenced type if an only if the relationship is of type "Aggregation" and it is
          * navigable from Element classElem to the referenced element.
          * This means that we ignore relationships of kind "Association"
          */
@@ -1124,9 +1124,9 @@ namespace IDL4_EA_Extension
                 return null;
             }
 
-           
+
             ConnectorEnd target = conn.SupplierEnd;
-            ConnectorEnd source = conn.ClientEnd;          
+            ConnectorEnd source = conn.ClientEnd;
 
             String refTypeName = null;
             Element referencedElem = null;
@@ -1153,14 +1153,14 @@ namespace IDL4_EA_Extension
             {
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
                 {
-                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname 
-                        + "\" because it is 'Association' but containment type is '"  +referencedElemEnd.Containment 
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname
+                        + "\" because it is 'Association' but containment type is '"  +referencedElemEnd.Containment
                         +"' instead of 'Value' */");
                 }
                 return null;
             }
 
-            if ( thisElemEnd.Aggregation == 0) 
+            if ( thisElemEnd.Aggregation == 0)
             {
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
                 {
@@ -1169,9 +1169,9 @@ namespace IDL4_EA_Extension
                 return null;
             }
 
-            if (referencedElemEnd.IsNavigable == false) 
+            if (referencedElemEnd.IsNavigable == false)
             {
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC) 
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
                 {
                     output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because is non-navigable */");
                 }
@@ -1198,7 +1198,7 @@ namespace IDL4_EA_Extension
 
                 if (cardinality.Equals("") || cardinality.Equals("1"))
                 {
-                    // Use pointer notation for IDL_V350_CONNEXT52 
+                    // Use pointer notation for IDL_V350_CONNEXT52
                     if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
                     {
                         refTypeName = refTypeName + "*";
@@ -1231,7 +1231,7 @@ namespace IDL4_EA_Extension
                         refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
                         if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                         {
-                            output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = " 
+                            output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = "
                                                         + cardinality + " (lower bound < upper bound) */");
                         }
                     }
@@ -1306,7 +1306,7 @@ namespace IDL4_EA_Extension
             return elementPath + "\\" + elementName;
         }
 
-        private static bool IsElementUnchecked(HashSet<String> uncheckedElem, String elementFullName) 
+        private static bool IsElementUnchecked(HashSet<String> uncheckedElem, String elementFullName)
         {
             return (uncheckedElem != null) && (uncheckedElem.Contains(elementFullName));
         }
@@ -1328,7 +1328,7 @@ namespace IDL4_EA_Extension
         /**
          *  This function traverses the package, recursively visiting all its children, and updates
          *  the moduleRelevance dictionary storing whether each individual module is relevant or not
-         *  
+         *
          * Relevance is currently defined as not being empty for the purposes of IDL generation. This
          * means having some class, some enumeration, or recursively containing a relevant sub-package
          */
@@ -1420,9 +1420,9 @@ namespace IDL4_EA_Extension
 
         /**
          * Checks that all the definitions this class depends on are already generated
-         * This includes the base classes as well as any types that appear as 
+         * This includes the base classes as well as any types that appear as
          * attributes and are not marked "@Shared"
-         * 
+         *
          */
         private static bool GenIDL_DependenciesAlreadyGenerated(Repository repository, Element classElem,
             TextOutputInterface output, HashSet<long> completedClasses, bool outputReport)
@@ -1449,7 +1449,7 @@ namespace IDL4_EA_Extension
 
             // Check atributes
             foreach (EA.Attribute child in classElem.Attributes)
-            {       
+            {
                if (child.ClassifierID == 0) /* Primitive type */
                 {
                     continue;
@@ -1466,7 +1466,7 @@ namespace IDL4_EA_Extension
                             output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, childTypeElem) + "\" , \"" + childTypeElem.Name + "\" )");
                             output.OutputTextLine("   dependency:  attribute \"" + child.Name + "\"");
                         }
- 
+
                         return false;
                     }
                 }
@@ -1512,7 +1512,7 @@ namespace IDL4_EA_Extension
                         output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, referencedElem) + "\" , \"" + referencedElem.Name + "\" )");
                         output.OutputTextLine("   dependency:  aggregation \"" + GenIDL_GetReferenceName(conn) + "\"");
                     }
- 
+
                     return false;
                 }
             }
@@ -1524,16 +1524,16 @@ namespace IDL4_EA_Extension
          *  Determines whether the attribute links the member by reference
          *  indicating that the type of the attribute does not need to be fully declared by
          *  the time we generate the IDL for the containing class.
-         *   
+         *
          *  This is true for attributes tagged "@Shared" and maybe others as well
          */
         private static bool IsAttributeReference(EA.Attribute member)
         {
-            return (member.TaggedValues != null) && (EAUtil_FindChild(member.TaggedValues, "//@Shared") != null); 
+            return (member.TaggedValues != null) && (EAUtil_FindChild(member.TaggedValues, "//@Shared") != null);
         }
 
         private static void GenIDL_Class(Repository repository, Element classElem,
-            TextOutputInterface output, int depth, 
+            TextOutputInterface output, int depth,
             HashSet<String> uncheckedElem, String elementPath)
         {
             // Check if this was a XSD simpleType if so there is nothing to do because we already generated
@@ -1549,7 +1549,7 @@ namespace IDL4_EA_Extension
             {
                 Object obj = classElem.BaseClasses.GetAt(0);
                 Element elem = (Element)obj;
-                baseClassName = GenIDL_GetFullPackageName(repository, elem) 
+                baseClassName = GenIDL_GetFullPackageName(repository, elem)
                     + IDL_NormalizeUserDefinedClassifierName(elem.Name);
 
                 if (baseClassName == null)
@@ -1557,9 +1557,9 @@ namespace IDL4_EA_Extension
                     output.OutputText(depth, "/* Warning: empty base class ommitted for " + classElem.Name + "*/");
                 }
             }
-            
 
-            
+
+
             // In IDL4 and higher annotations are before the class
             if  (idlVersion >= IDLVersion.IDL_V400) {
                 GenIDL_ClassAnnotation(classElem, output, depth);
@@ -1599,13 +1599,13 @@ namespace IDL4_EA_Extension
         private static int GenIDL_ClassAnnotation(Element classElem,
             TextOutputInterface output, int depth)
         {
-            string[] relevantAnnotationsNoValue = new string[] { 
-                "autoid", 
-                "final", "mutable", 
+            string[] relevantAnnotationsNoValue = new string[] {
+                "autoid",
+                "final", "mutable",
                 "nested",
                 "service"
             };
-            string[] relevantAnnotationsWithValue = new string[] { 
+            string[] relevantAnnotationsWithValue = new string[] {
                 "Extensibility", "verbatim"
             };
 
@@ -1646,12 +1646,12 @@ namespace IDL4_EA_Extension
 
             return annotationCount;
         }
-        
+
 
         private static char[] invalidTypenameChars = new char[] { ' ', '-', '&', '(', ')' };
 
         /**  Normalizes a user-defined UML classifier (class / package) name into a legal IDL class/module name
-         * 
+         *
          */
         public static String IDL_NormalizeUserDefinedClassifierName(String classifierName)
         {
@@ -1679,7 +1679,7 @@ namespace IDL4_EA_Extension
         private static readonly Regex MultipleSpaces = new Regex(@" {2,}", RegexOptions.Compiled);
 
         /** Normalizes a type name converting it into a legal IDL4  type.
-         *  
+         *
          * This function handles common variations of primitive type names. For anything non-primitive
          * it just calls IDL_NormalizeUserDefinedClassifierName
          */
@@ -1694,7 +1694,7 @@ namespace IDL4_EA_Extension
                 }
             }
 
-            return IDL_NormalizeUserDefinedClassifierName(normalizedType); 
+            return IDL_NormalizeUserDefinedClassifierName(normalizedType);
         }
 
 
@@ -1726,7 +1726,7 @@ namespace IDL4_EA_Extension
         private static readonly string[] onewayAnnotation = new string[] { "oneway" };
         private static readonly string[] amiAnnotation = new string[]   { "ami" };
 
-        // Not strictly a IDL3.5, 4, or XTYPES annotation but something users do sometimes 
+        // Not strictly a IDL3.5, 4, or XTYPES annotation but something users do sometimes
         private static readonly string[] ddsAnnotation = new string[] { "DDS", "dds" };
 
         private static readonly string[][] builtinAnnotationVariations = {
@@ -1741,8 +1741,8 @@ namespace IDL4_EA_Extension
         };
 
         /** Normalizes an annotation type name converting it into a legal IDL4 / Connext DDS annotation.
-         *  
-         * This function handles common variations of capitalization for the builtin annotations. For anything 
+         *
+         * This function handles common variations of capitalization for the builtin annotations. For anything
          * non-built-in it just leaves it unchanged
          */
         private static String IDL_NormalizeAnnotationName(String annotationName)
@@ -1760,7 +1760,7 @@ namespace IDL4_EA_Extension
         }
 
         /**
-         * Determines whether this is a model element relevant to Connext DDS and we need to 
+         * Determines whether this is a model element relevant to Connext DDS and we need to
          * generate code associated with the model element.
          */
         private static bool IsClass(Element e)
