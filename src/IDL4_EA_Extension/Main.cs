@@ -180,6 +180,7 @@ namespace IDL4_EA_Extension
                 isEnabled = false;
         }
 
+
         // Called when user makes a selection in the menu.
         // This is your main exit point to the rest of your Add-in
         public void EA_MenuClick(Repository repository,
