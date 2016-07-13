@@ -111,6 +111,29 @@ namespace IDL4_EA_Extension
         }
     }
 
+    /* This is a helper class to resolve a connector from the perspective of one of the
+     * two elements that terminate the connector.
+     * It resolves
+     * - The referenced elementID
+     * - The two connectors ends. "source" and "refernced element" 
+     */
+    class ReferenceDescriptor
+    {
+        public ReferenceDescriptor()
+        {
+            sourceElemEnd     = null;
+            referencedElemEnd = null;
+            referencedElemId  = 0;
+            shouldBeIncludedInSourceElemClass = false;
+            explanation       = null;
+        }
+        public ConnectorEnd  sourceElemEnd;
+        public ConnectorEnd  referencedElemEnd;
+        public int           referencedElemId;
+        public bool          shouldBeIncludedInSourceElemClass;
+        String               explanation;
+    };
+
     [ComVisible(true)]
     public class Main
     {
@@ -1048,7 +1071,7 @@ namespace IDL4_EA_Extension
                 {
                     if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL))
                     {
-                        output.OutputTextLine(depth, "/* Skipping unkown annotation name:\"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
+                        output.OutputTextLine(depth, "/* Skipping unkown annotation name: \"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
                     }
                 }
             }
@@ -1069,14 +1092,112 @@ namespace IDL4_EA_Extension
             return annotationCount;
         }
 
-        private static String GenIDL_GetReferenceName(EA.Connector conn)
+        /*
+         * Determinies member name used when a member is created as a result of a reference to some other class/element
+         * The member name is chosen following a set of rules to it is the "most natural one" accoding to whether the user
+         * has explicitly named the role, reference, etc.
+         * The criteria is:
+         *   - Use the rolename if present
+         *   - Else use the relationship name
+         *   - Else use the name of the target class starting with lower case, or preceeded with a "m_"
+         *   
+         * Names are always normalized to prevent using characters that would be invalid as a member name
+         * When the classname is used a "numeric suffix" is used to prevent multiple references to the same
+         * class resulting on member name collisions
+         */
+        private static String GenIDL_GetReferenceName(EA.Connector conn, EA.ConnectorEnd referencedElemEnd, EA.Element referencedElem)
         {
-            if (conn.Name.Equals(""))
-            {
-                return "unamed_reference";
+            String refName = referencedElemEnd.Role;
+            if ( refName.Equals("") )  {
+                refName = conn.Name;
+            }
+            if (refName.Equals(""))    {
+                char firstLetter = referencedElem.Name[0];
+                if ( char.IsUpper(firstLetter) )  {
+                    refName = char.ToLower(firstLetter) + referencedElem.Name.Substring(1);
+                }
+                else {
+                    refName = "m_" + referencedElem.Name;
+                }
             }
 
-            return IDL_NormalizeUserDefinedClassifierName(conn.Name);
+            return IDL_NormalizeUserDefinedClassifierName(refName);
+        }
+
+        private static void GenIDL_ReferenceDescriptor(
+            EA.Repository repository, EA.Connector conn, int sourceElemId, bool explain,
+            out EA.ConnectorEnd sourceElemEnd, out EA.ConnectorEnd referencedElemEnd, 
+            out int referencedElemId, out EA.Element referencedElem,
+            out bool includeInSourceElem, out String explanation)
+        {
+            if (sourceElemId == conn.ClientID)
+            {
+                sourceElemEnd = conn.ClientEnd;
+                referencedElemEnd = conn.SupplierEnd;
+                referencedElemId = conn.SupplierID;
+            }
+            else
+            {
+                sourceElemEnd = conn.SupplierEnd;
+                referencedElemEnd = conn.ClientEnd;
+                referencedElemId = conn.ClientID;
+            }
+
+            referencedElem = repository.GetElementByID(referencedElemId);
+            includeInSourceElem = false;
+            explanation = null;
+
+            // Only consider "Aggregation" and "Association" relationships as reasons to include the
+            // referenced element as a member
+            string[] relevantConnectorTypes = new string[] { "Association", "Aggregation" };
+            if (!relevantConnectorTypes.Contains(conn.Type))
+            {
+                if (explain)
+                {
+                    explanation = "association type is '" + conn.Type + "' instead of 'Association' or 'Aggregation'";
+                }
+                return;
+            }
+
+
+            if (conn.Type.Equals("Association") && !referencedElemEnd.Containment.Equals("Value"))
+            {
+                if (explain)
+                {
+                    explanation = "target role containment type is '"  + referencedElemEnd.Containment + "' instead of 'Value'";
+                }
+                return;
+            }
+
+            if ( sourceElemEnd.Aggregation == 0)
+            {
+                if (explain)
+                {
+                    explanation = "source role Aggegation property is 'none' instead of 'shared' or 'composite'";
+                }
+                return;
+            }
+
+            if (referencedElemEnd.IsNavigable == false)
+            {
+                if (explain)
+                {
+                    explanation = "target role Navigability property is false";
+                }
+                return;
+            }
+
+            if (referencedElem == null)
+            {
+                if (explain)
+                {
+                    explanation = "target element with ElementID = " + referencedElemId + " is not found in UML Repository";
+                }
+                return;
+            }
+
+            includeInSourceElem = true;
+            return;
         }
 
         /**
@@ -1090,144 +1211,115 @@ namespace IDL4_EA_Extension
          * navigable from Element classElem to the referenced element.
          * This means that we ignore relationships of kind "Association"
          */
-        private static String GenIDL_GetReferencedTypeToInclude(out String annotation, out String refname,
+        private static String GenIDL_GetReferencedTypeToInclude(
+            out String annotation, out String memberName,
             Repository repository,
             Element classElem, EA.Connector conn, TextOutputInterface output, int depth)
         {
             annotation = null;
-            refname = GenIDL_GetReferenceName(conn);
+            memberName    = null;
 
-            // Only consider "Aggregation" relationship. Not "Association"
-            string[] relevantConnectorTypes = new string[] { "Association", "Aggregation" };
-
-
-            //output.OutputTextLine("GenIDL_GetReferencedTypeToInclude name: " + refname + " type: " + conn.Type
-            //  + " source/target.Aggr: [" + conn.ClientEnd.Aggregation + "," + conn.SupplierEnd.Aggregation + "]"
-            //  + " direction: " + conn.Direction
-            //  + " cardinality: [" + conn.SupplierEnd.Cardinality + "|" + conn.ClientEnd.Cardinality + "]");
-
-            if (!relevantConnectorTypes.Contains(conn.Type))
+            // Generalization (Inheritance) does not cause the referenced element to 
+            // appear as member. This is well understood so no need to report more details on why
+            if (conn.Type.Equals("Generalization"))
             {
-                if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
-                        && (!conn.Type.Equals("Generalization")))
-                {
-                    if (conn.Type.Equals("Generalization"))
-                    {
-                        output.OutputTextLine(depth, "/* Warning: Skipping generalization \"" + refname + " */");
-                    }
-                    else
-                    {
-                        output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because relationshipKind is " + conn.Type + " instead of Aggregation or Association */");
-                    }
-                }
                 return null;
             }
 
-
-            ConnectorEnd target = conn.SupplierEnd;
-            ConnectorEnd source = conn.ClientEnd;
-
-            String refTypeName = null;
-            Element referencedElem = null;
-            String cardinality = null;
-
+            Element referencedElem;
             ConnectorEnd thisElemEnd;
             ConnectorEnd referencedElemEnd;
             int referencedElemId;
+            String explanation;
+            bool includeReferencedTypeAsMember;
 
-            if (classElem.ElementID == conn.ClientID)
+            bool reportExplanationText = idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC;
+
+            GenIDL_ReferenceDescriptor(repository, conn, classElem.ElementID, reportExplanationText,
+                out thisElemEnd, out referencedElemEnd, out referencedElemId, out referencedElem, 
+                out includeReferencedTypeAsMember, out explanation);
+
+            memberName = GenIDL_GetReferenceName(conn, referencedElemEnd, referencedElem);
+            if ( !includeReferencedTypeAsMember ) {
+                if ( reportExplanationText ) {
+                    String referencedElementClassName = "Unknown Type";
+                    if (referencedElem != null)
+                    {
+                        referencedElementClassName = referencedElem.Name;
+                    }
+
+                    output.OutputTextLine(depth, "/* Skipping reference \"" + memberName
+                        + "\" to element \"" + referencedElementClassName + "\" because " + explanation + " */");
+                }
+                return null;
+            }
+
+            /* If we are here we know includeReferencedTypeAsMember == TRUE
+             * this means referenced class as a member of this element 
+             * and also that referencedElem != null as this is checked as part of the condition to include that class */
+            String memberTypeScoped = null;
+            String cardinality = referencedElemEnd.Cardinality;
+           
+
+            String normalizedMemberType = IDL_NormalizeMemberTypeName(referencedElem.Name);
+
+            if (memberName.Equals(""))
             {
-                thisElemEnd = conn.ClientEnd;
-                referencedElemEnd = conn.SupplierEnd;
-                referencedElemId = conn.SupplierID;
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "/* Automatically generating name for unnamed reference" + " to " + normalizedMemberType + " */");
+                }
+                memberName = "ref_" + normalizedMemberType;
+            }
+
+            memberTypeScoped = GenIDL_GetFullPackageName(repository, referencedElem) + normalizedMemberType;
+
+            if (cardinality.Equals("") || cardinality.Equals("1"))
+            {
+                // Use pointer notation for IDL_V350_CONNEXT52
+                if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
+                {
+                    memberTypeScoped = memberTypeScoped + "*";
+                }
+                else // Otherwise use an annotation
+                {
+                    annotation = "@Shared";
+                }
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality == 1 (or is unspecified) */");
+                }
+            }
+            else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
+            {
+                // No upper limit -> unbounded sequence
+                memberTypeScoped = "sequence<" + memberTypeScoped + ">";
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relation cardinality is \"*\" (or \"..*\") */");
+                }
             }
             else
             {
-                thisElemEnd = conn.SupplierEnd;
-                referencedElemEnd = conn.ClientEnd;
-                referencedElemId = conn.ClientID;
-            }
-
-            if (conn.Type.Equals("Association") && !referencedElemEnd.Containment.Equals("Value"))
-            {
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
+                // Bounded sequence
+                int upperLimit = 0;
+                if (Int32.TryParse(cardinality, out upperLimit))
                 {
-                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname
-                        + "\" because it is 'Association' but containment type is '"  +referencedElemEnd.Containment
-                        +"' instead of 'Value' */");
-                }
-                return null;
-            }
-
-            if ( thisElemEnd.Aggregation == 0)
-            {
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
-                {
-                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because end is non-aggregating */");
-                }
-                return null;
-            }
-
-            if (referencedElemEnd.IsNavigable == false)
-            {
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC)
-                {
-                    output.OutputTextLine(depth, "/* Skipping reference \"" + refname + "\" because is non-navigable */");
-                }
-                return null; ;
-            }
-
-            referencedElem = repository.GetElementByID(referencedElemId);
-            cardinality = referencedElemEnd.Cardinality;
-
-            if (referencedElem != null)
-            {
-                String normalizedMemberType = IDL_NormalizeMemberTypeName(referencedElem.Name);
-
-                if (refname.Equals(""))
-                {
+                    if (upperLimit <= 0) { upperLimit = 1; }
+                    memberTypeScoped = "sequence<" + memberTypeScoped + "," + upperLimit + ">";
                     if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                     {
-                        output.OutputTextLine(depth, "/* Automatically generating name for unamed reference */");
-                    }
-                    refname = "ref_" + normalizedMemberType;
-                }
-
-                refTypeName = GenIDL_GetFullPackageName(repository, referencedElem) + normalizedMemberType;
-
-                if (cardinality.Equals("") || cardinality.Equals("1"))
-                {
-                    // Use pointer notation for IDL_V350_CONNEXT52
-                    if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
-                    {
-                        refTypeName = refTypeName + "*";
-                    }
-                    else // Otherwise use an annotation
-                    {
-                        annotation = "@Shared";
-                    }
-                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
-                    {
-                        output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality == 1 (or is unspecified) */");
-                    }
-                }
-                else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
-                {
-                    // No upper limit -> unbounded sequence
-                    refTypeName = "sequence<" + refTypeName + ">";
-                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
-                    {
-                        output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relation cardinality is \"*\" (or \"..*\") */");
+                        output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = "
+                                                    + cardinality + " (lower bound < upper bound) */");
                     }
                 }
                 else
                 {
-                    // Bounded sequence
-                    int upperLimit = 0;
-                    if (Int32.TryParse(cardinality, out upperLimit))
+                    int limitPos = cardinality.LastIndexOf("..");
+                    if ((limitPos != -1) &&
+                            Int32.TryParse(cardinality.Substring(limitPos + 2), out upperLimit))
                     {
-                        if (upperLimit <= 0) { upperLimit = 1; }
-                        refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
+                        memberTypeScoped = "sequence<" + memberTypeScoped + "," + upperLimit + ">";
                         if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                         {
                             output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = "
@@ -1236,31 +1328,18 @@ namespace IDL4_EA_Extension
                     }
                     else
                     {
-                        int limitPos = cardinality.LastIndexOf("..");
-                        if ((limitPos != -1) &&
-                              Int32.TryParse(cardinality.Substring(limitPos + 2), out upperLimit))
+                        memberTypeScoped = "sequence<" + memberTypeScoped + ">";
+                        if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                         {
-                            refTypeName = "sequence<" + refTypeName + "," + upperLimit + ">";
-                            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
-                            {
-                                output.OutputTextLine(depth, "/* Mapping to bounded sequence because relationship cardinality = "
-                                                            + cardinality + " (lower bound < upper bound) */");
-                            }
-                        }
-                        else
-                        {
-                            refTypeName = "sequence<" + refTypeName + ">";
-                            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
-                            {
-                                output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relationship cardinality = "
-                                                            + cardinality + " */");
-                            }
+                            output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relationship cardinality = "
+                                                        + cardinality + " */");
                         }
                     }
                 }
+                
             }
 
-            return refTypeName;
+            return memberTypeScoped;
         }
 
         //TODO: This should examine the relationship and determine the multiplicity so that
@@ -1472,44 +1551,34 @@ namespace IDL4_EA_Extension
             }
 
             // Check relationships (Aggregations only)
+            String explanation;
             foreach (EA.Connector conn in classElem.Connectors)
             {
                 ConnectorEnd thisElemEnd;
                 ConnectorEnd referencedElemEnd;
                 int referencedElemId;
+                Element referencedElem;
+                bool includeReferencedTypeAsMember;
 
-                if (classElem.ElementID == conn.ClientID)
-                {
-                    thisElemEnd = conn.ClientEnd;
-                    referencedElemEnd = conn.SupplierEnd;
-                    referencedElemId = conn.SupplierID;
-                }
-                else
-                {
-                    thisElemEnd = conn.SupplierEnd;
-                    referencedElemEnd = conn.ClientEnd;
-                    referencedElemId = conn.ClientID;
-                }
+                // Resolve the reference but ommit any explanatory text
+                GenIDL_ReferenceDescriptor(repository, conn, classElem.ElementID, false,
+                                            out thisElemEnd, out referencedElemEnd, out referencedElemId, out referencedElem,
+                                            out includeReferencedTypeAsMember, out explanation);
 
-                if ( (thisElemEnd.Aggregation == 0)
-                      || (conn.Type.Equals("Aggregation") == false))
-                {
+                // If the reference did not have to be included, there there is no dependency on it.
+                if ( includeReferencedTypeAsMember == false ) {
                     continue;
                 }
 
-                if (!referencedElemEnd.IsNavigable)
-                {
-                    continue;
-                }
-
+                // If we are here then the referenced element must appear as a member. There is a depedency so we must make sure
+                // that that class has already been generated
                 if (!completedClasses.Contains(referencedElemId))
                 {
                     if (outputReport)
                     {
-                        Element referencedElem = repository.GetElementByID(referencedElemId);
                         output.OutputText("    ( \"" + GenIDL_GetFullPackageName(repository, classElem) + "\" , \"" + classElem.Name + "\" )");
                         output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, referencedElem) + "\" , \"" + referencedElem.Name + "\" )");
-                        output.OutputTextLine("   dependency:  aggregation \"" + GenIDL_GetReferenceName(conn) + "\"");
+                        output.OutputTextLine("   dependency:  aggregation \"" + GenIDL_GetReferenceName(conn, referencedElemEnd, referencedElem) + "\"");
                     }
 
                     return false;
@@ -1638,7 +1707,7 @@ namespace IDL4_EA_Extension
                 {
                     if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL))
                     {
-                        output.OutputTextLine(depth, "/* Skipping unkown annotation name:\"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
+                        output.OutputTextLine(depth, "/* Skipping unknown annotation name:\"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
                     }
                 }
             }
