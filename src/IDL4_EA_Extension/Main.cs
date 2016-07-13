@@ -139,7 +139,7 @@ namespace IDL4_EA_Extension
     {
 
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
-        private const String MENU_ITEM_GENERATE_XML = "Generate IDL ...";
+        private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
         private static int idlVersion = IDLVersions.defaultVersion.Value;
         private static int idlMappingDetail = IDLVersions.defaultMappingDetails.Value;
@@ -168,7 +168,7 @@ namespace IDL4_EA_Extension
                 case "":
                     return MENU_ROOT_RTI_CONNEXT;
                 case MENU_ROOT_RTI_CONNEXT:
-                    return MENU_ITEM_GENERATE_XML;
+                    return MENU_ITEM_GENERATE_IDL;
             }
             return "";
         }
@@ -211,7 +211,7 @@ namespace IDL4_EA_Extension
 
             switch (itemName)
             {
-                case MENU_ITEM_GENERATE_XML:
+                case MENU_ITEM_GENERATE_IDL:
                     IDLGenAction idlGenAction = new IDLGenAction();
                     IDLClassSelector idlClassSelector = new IDLClassSelector(idlGenAction);
                     TextBoxOutputAdapter output = new TextBoxOutputAdapter(idlClassSelector.getTextBox());
@@ -220,7 +220,7 @@ namespace IDL4_EA_Extension
 
                    // GenerateIDL(repository, output);
 
-                    PopulateClassSelector(idlClassSelector, repository);
+                    PopulateRepositoryClassSelector(idlClassSelector, repository);
                     idlClassSelector.Text = "IDL4 (RTI Connext DDS) - Select classes for IDL generation";
                     idlClassSelector.Show();
                     //idlGenAction.OnCodegenAction();
@@ -228,15 +228,41 @@ namespace IDL4_EA_Extension
             }
         }
 
-        public static void PopulateClassSelector(IDLClassSelector classSelector, Repository repository)
+        public static void PopulatePackageClassesAndEnums(TreeNode packageTreeNode, Package package)
+        {
+           foreach (Element e in package.Elements)
+            {
+                if (IsClass(e) || IsElementEnum(e))
+                {
+                    TreeNode classNode = new TreeNode(e.Name);
+                    classNode.Checked = true;
+                    packageTreeNode.Nodes.Add(classNode);
+                }
+            }
+        }
+
+        /*
+         * *** This feature is not fully implemented so it is not used.***
+         * 
+         * The longer term objective would be to use this event to re-sync all the classes/enum with the model but only
+         * at that level, not recursively
+         */
+        public static void ClassSelector_TreeViewAfterExpand(object sender, TreeViewEventArgs e)
+        {
+            return;
+        }
+
+        public static void PopulateRepositoryClassSelector(IDLClassSelector classSelector, Repository repository)
         {
             TreeNodeCollection treeNodes = classSelector.getTreeView().Nodes;
+
 
             foreach (Package model in repository.Models)
             {
                 TreeNode newNode = new TreeNode(model.Name);
                 newNode.Checked = true;
                 newNode.Expand();
+                newNode.Tag = model.Name;
                 treeNodes.Add(newNode);
 
                 foreach (Package package in model.Packages)
@@ -244,30 +270,25 @@ namespace IDL4_EA_Extension
                     PopulateClassSelector(newNode, package);
                 }
             }
+
+            // Disble because feature is not fully implemeted yet
+            //classSelector.getTreeView().AfterExpand += new TreeViewEventHandler(ClassSelector_TreeViewAfterExpand);
         }
 
         public static void PopulateClassSelector(TreeNode parentNode, Package package)
         {
             TreeNode packageNode = new TreeNode(package.Name);
             packageNode.Checked = true;
-            packageNode.Expand();
+            packageNode.Tag = package.Name;  // Store the related package
             parentNode.Nodes.Add(packageNode);
-
-
-            foreach (Element e in package.Elements)
-            {
-                if (IsClass(e) || IsElementEnum(e) )
-                {
-                    TreeNode classNode = new TreeNode(e.Name);
-                    classNode.Checked = true;
-                    packageNode.Nodes.Add(classNode);
-                }
-            }
 
             foreach (Package p in package.Packages)
             {
                 PopulateClassSelector(packageNode, p);
             }
+
+            PopulatePackageClassesAndEnums(packageNode, package);
+            packageNode.Expand();
         }
 
         /** Finds a child of an EA Model element capturing exceptions raised if the child is not
