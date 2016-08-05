@@ -1,7 +1,7 @@
 <project>
     <shortName>idl4eaextension</shortName>
     <fullName>IDL 4 Sparx Enterprise Architect Extension</fullName>
-    <version>1.4</version>
+    <version>1.5</version>
     <installerFilename>idl4_ea_extension-installer-${project.version}.${platform_exec_suffix}</installerFilename>
     <showFileUnpackingProgress>0</showFileUnpackingProgress>
     <removeLogFile>1</removeLogFile>
@@ -42,12 +42,12 @@
 		    <destination>${installdir}</destination>
 		    <distributionFileList>
 			<distributionFile>
-			    <origin>../redistributables/vcredist_2013_x86.exe</origin>
+			    <origin>../redistributables/vcredist_2015_x86.exe</origin>
 			</distributionFile>
 		    </distributionFileList>
                     <actionList>
 			<runProgram>
-			    <progressText>Installing VC++ 12 runtime</progressText>
+			    <progressText>Installing Visual Studio C++ 2013 runtime</progressText>
 			    <program>${installdir}/vcredist_2013_x86.exe</program>
 			    <programArguments>/q:a /c:"msiexec /i vcredist.msi /qn /l*v ${system_temp_directory.dos}\vcredist_x86.log"</programArguments>
 			    <abortOnError>0</abortOnError>
