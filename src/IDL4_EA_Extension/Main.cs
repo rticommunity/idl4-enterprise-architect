@@ -138,6 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
+        private const String IDL_GENERATOR_REVISION = "1.5";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -221,7 +222,7 @@ namespace IDL4_EA_Extension
                    // GenerateIDL(repository, output);
 
                     PopulateRepositoryClassSelector(idlClassSelector, repository);
-                    idlClassSelector.Text = "IDL4 (RTI Connext DDS) - Select classes for IDL generation";
+                    idlClassSelector.Text = "IDL4 (RTI Connext DDS) - Select classes for IDL generation - Plugin revision " + IDL_GENERATOR_REVISION;
                     idlClassSelector.Show();
                     //idlGenAction.OnCodegenAction();
                     break;
@@ -547,11 +548,12 @@ namespace IDL4_EA_Extension
             return classElem.Genlinks.IndexOf("Parent=") != -1;
         }
 
-        private static readonly string[] xsd_longTypes      = new string[] { "long", "int", "integer", "decimal", "negativeInteger", "nonPositiveInteger", };
-        private static readonly string[] xsd_ulongTypes     = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
+        //TODO: IDL_XSDprimitive2IDLprimitive should be deprecated. Use IDL_NormalizeMemberTypeName() instead
+        private static readonly string[] xsd_longTypes = new string[] { "long", "int", "integer", "negativeInteger", "nonPositiveInteger" };
+        private static readonly string[] xsd_ulongTypes = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
         private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
-        private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte" };
-        private static readonly string[] xsd_stringTypes    = new string[] { "string", "normalizedString", "hexBinary", "base64Binary"  };
+        private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte" };
+        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
         private static readonly string[][] xsd_primtiveTypeVariations = {
                 xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
             };
@@ -1092,7 +1094,7 @@ namespace IDL4_EA_Extension
                 {
                     if ((idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL))
                     {
-                        output.OutputTextLine(depth, "/* Skipping unkown annotation name: \"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
+                        output.OutputTextLine(depth, "/* Skipping unknown annotation name: \"" + tag.Name + "\" value: \"" + tag.Value + "\" */");
                     }
                 }
             }
@@ -1170,12 +1172,30 @@ namespace IDL4_EA_Extension
 
             // Only consider "Aggregation" and "Association" relationships as reasons to include the
             // referenced element as a member
-            string[] relevantConnectorTypes = new string[] { "Association", "Aggregation" };
+            string[] relevantConnectorTypes = new string[] { "Association", "Aggregation", "Nesting" };
             if (!relevantConnectorTypes.Contains(conn.Type))
             {
                 if (explain)
                 {
-                    explanation = "association type is '" + conn.Type + "' instead of 'Association' or 'Aggregation'";
+                    explanation = "association type is '" + conn.Type + "' instead of 'Association', 'Aggregation', or 'Nesting'";
+                }
+                return;
+            }
+
+            if (referencedElemEnd.IsNavigable == false)
+            {
+                if (explain)
+                {
+                    explanation = "target role Navigability property is false";
+                }
+                return;
+            }
+
+            if (sourceElemEnd.Aggregation == 0)
+            {
+                if (explain)
+                {
+                    explanation = "source role Aggegation property is 'none' instead of 'shared' or 'composite'";
                 }
                 return;
             }
@@ -1190,24 +1210,8 @@ namespace IDL4_EA_Extension
                 return;
             }
 
-            if ( sourceElemEnd.Aggregation == 0)
-            {
-                if (explain)
-                {
-                    explanation = "source role Aggegation property is 'none' instead of 'shared' or 'composite'";
-                }
-                return;
-            }
 
-            if (referencedElemEnd.IsNavigable == false)
-            {
-                if (explain)
-                {
-                    explanation = "target role Navigability property is false";
-                }
-                return;
-            }
-
+  
             if (referencedElem == null)
             {
                 if (explain)
@@ -1283,19 +1287,9 @@ namespace IDL4_EA_Extension
            
 
             String normalizedMemberType = IDL_NormalizeMemberTypeName(referencedElem.Name);
-
-            if (memberName.Equals(""))
-            {
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
-                {
-                    output.OutputTextLine(depth, "/* Automatically generating name for unnamed reference" + " to " + normalizedMemberType + " */");
-                }
-                memberName = "ref_" + normalizedMemberType;
-            }
-
             memberTypeScoped = GenIDL_GetFullPackageName(repository, referencedElem) + normalizedMemberType;
 
-            if (cardinality.Equals("") || cardinality.Equals("1"))
+            if (cardinality.Equals("") || cardinality.Equals("1") || cardinality.Equals("0"))
             {
                 // Use pointer notation for IDL_V350_CONNEXT52
                 if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
@@ -1508,7 +1502,7 @@ namespace IDL4_EA_Extension
         private static void GenIDL_EmptyClassContent(String className,
             TextOutputInterface output, int depth)
         {
-            output.OutputTextLine(depth, "octet __dummy_prevent_empty_class;");
+            output.OutputTextLine(depth, "octet __dummy_prevent_empty_class_" + IDL_NormalizeUserDefinedClassifierName(className) + ";");
         }
 
         private static void GenIDL_EmptyModuleContent(String moduleName,
@@ -1690,7 +1684,7 @@ namespace IDL4_EA_Extension
         {
             string[] relevantAnnotationsNoValue = new string[] {
                 "autoid",
-                "final", "mutable",
+                "final", "mutable", "extensible",
                 "nested",
                 "service"
             };
@@ -1751,19 +1745,26 @@ namespace IDL4_EA_Extension
             return classifierName;
         }
 
+        private static readonly string[] boolTypes      = new string[] { "boolean", "bool" };
+        private static readonly string[] charTypes      = new string[] { "char" };
+        private static readonly string[] wcharTypes     = new string[] { "wchar", "wchar_t" };
+
         private static readonly string[] longlongTypes  = new string[] { "long long", "int64", "int64_t" };
         private static readonly string[] ulonglongTypes = new string[] { "unsigned long long", "uint64", "uint64_t" };
-        private static readonly string[] longTypes      = new string[] { "long", "int", "int32", "int32_t", "integer", };
+        private static readonly string[] longTypes      = new string[] { "long", "int", "int32", "int32_t", "integer", "decimal", "unlimitednatural"};
         private static readonly string[] ulongTypes     = new string[] { "unsigned long", "unsigned int", "ulong", "uint", "uint32", "uint32_t" };
         private static readonly string[] shortTypes     = new string[] { "short", "int16", "int16_t" };
         private static readonly string[] ushortTypes    = new string[] { "unsigned short", "ushort", "uint16", "uint16_t" };
-        private static readonly string[] octetTypes     = new string[] { "octet", "byte", "int8", "int8_t", "uint8", "uint8_t" };
-        private static readonly string[] floatTypes     = new string[] { "float", "float32", "number" };
+        private static readonly string[] octetTypes     = new string[] { "octet", "byte", "sbyte", "int8", "int8_t", "uint8", "uint8_t" };
+        private static readonly string[] floatTypes     = new string[] { "float", "float32", "number", "real" };
         private static readonly string[] doubleTypes    = new string[] { "double", "float64" };
         private static readonly string[] stringTypes    = new string[] { "string", "String" };
+        private static readonly string[] wstringTypes   = new string[] { "wstring" };
 
         private static readonly string[][] primtiveTypeVariations = {
-            longlongTypes, ulonglongTypes, longTypes, ulongTypes, shortTypes, ushortTypes, octetTypes, floatTypes, doubleTypes, stringTypes };
+            boolTypes, charTypes, wcharTypes, 
+            longlongTypes, ulonglongTypes, longTypes, ulongTypes, shortTypes, ushortTypes, octetTypes, floatTypes, doubleTypes, 
+            stringTypes,  wstringTypes };
 
         private static readonly Regex MultipleSpaces = new Regex(@" {2,}", RegexOptions.Compiled);
 
