@@ -21,21 +21,36 @@
 	    <name>idl4_ea_extension</name>
 	    <folderList>
 		<folder>
+		    <name>root_dir</name>
 		    <description>installation_dir</description>
 		    <destination>${installdir}</destination>
 		    <distributionFileList>
 			<distributionFile>
 			    <origin>IDL4_EA_Extension/bin/Release/IDL4_EA_Extension.dll</origin>
 			</distributionFile>
+		    </distributionFileList>
+		</folder>
+                <folder>
+		    <name>examples</name>
+		    <description>installation_dir_examples</description>
+		    <destination>${installdir}/examples</destination>
+		    <distributionFileList>
 			<distributionFile>
 			    <origin>../uml_models/example/ExampleDataClasses.eap</origin>
 			</distributionFile>
 			<distributionFile>
-			    <origin>../doc/Mapping_UML_to_IDL.pdf</origin>
-			</distributionFile>
-			<distributionFile>
 			    <origin>../doc/Mapping_UML_to_IDL_ExampleModel.eap</origin>
 			</distributionFile>			
+		    </distributionFileList>
+		</folder>
+		<folder>
+		    <name>doc</name>
+		    <description>installation_dir_doc</description>
+		    <destination>${installdir}/doc</destination>
+		    <distributionFileList>
+			<distributionFile>
+			    <origin>../doc/Mapping_UML_to_IDL.pdf</origin>
+			</distributionFile>
 		    </distributionFileList>
 		</folder>
 	    </folderList>
