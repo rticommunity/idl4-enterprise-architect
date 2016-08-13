@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.5";
+        private const String IDL_GENERATOR_REVISION = "1.6";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
