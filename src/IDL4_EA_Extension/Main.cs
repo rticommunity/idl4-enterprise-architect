@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.6";
+        private const String IDL_GENERATOR_REVISION = "1.7";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -1302,7 +1302,22 @@ namespace IDL4_EA_Extension
                 }
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                 {
-                    output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality == 1 (or is unspecified) */");
+                    if (cardinality.Equals(""))
+                    {
+                        output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality is unspecified */");
+                    }
+                    else
+                    {
+                        output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality == " + cardinality + " */");
+                    }
+                }
+            }
+            else if (cardinality.Equals("0..1"))
+            {
+                annotation = "@Optional";
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "/* Mapping to Optional because relation cardinality == \"0..1\" */");
                 }
             }
             else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
@@ -1351,7 +1366,7 @@ namespace IDL4_EA_Extension
                         }
                     }
                 }
-                
+
             }
 
             return memberTypeScoped;

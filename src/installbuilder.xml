@@ -1,7 +1,7 @@
 <project>
     <shortName>idl4eaextension</shortName>
     <fullName>IDL 4 Sparx Enterprise Architect Extension</fullName>
-    <version>1.6</version>
+    <version>1.7</version>
     <installerFilename>idl4_ea_extension-installer-${project.version}.${platform_exec_suffix}</installerFilename>
     <showFileUnpackingProgress>0</showFileUnpackingProgress>
     <removeLogFile>1</removeLogFile>
