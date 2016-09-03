@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.7";
+        private const String IDL_GENERATOR_REVISION = "1.8";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -1032,7 +1032,7 @@ namespace IDL4_EA_Extension
                     output.OutputText("  //@" + annotationName);
                 }
                 else {
-                    output.OutputTextLine();
+                    // output.OutputTextLine();
                     output.OutputText(depth, "    //@" + annotationName);
                 }
 
@@ -1147,12 +1147,25 @@ namespace IDL4_EA_Extension
             return IDL_NormalizeUserDefinedClassifierName(refName);
         }
 
+        /*
+         * Returns a description of the reference relationship along with a decision on
+         * whether the referencec element should appear as a member.
+         * 
+         * Background on UML Associations:
+         * http://www.uml-diagrams.org/association.html
+         * 
+         * To appear as a member the relationship must:
+         * - Be "Association", "Aggregation", or "Nesting"
+         * - Be navigable to the referenced element
+         * - Have (source) aggregation property of "shared" or "composite"
+         */
         private static void GenIDL_ReferenceDescriptor(
             EA.Repository repository, EA.Connector conn, int sourceElemId, bool explain,
             out EA.ConnectorEnd sourceElemEnd, out EA.ConnectorEnd referencedElemEnd, 
             out int referencedElemId, out EA.Element referencedElem,
             out bool includeInSourceElem, out String explanation)
         {
+            /* Normalize the relationship identofyign the source and target roles */
             if (sourceElemId == conn.ClientID)
             {
                 sourceElemEnd = conn.ClientEnd;
@@ -1170,7 +1183,7 @@ namespace IDL4_EA_Extension
             includeInSourceElem = false;
             explanation = null;
 
-            // Only consider "Aggregation" and "Association" relationships as reasons to include the
+            // Only consider "Aggregation", "Association", and "Nesting" relationships as reasons to include the
             // referenced element as a member
             string[] relevantConnectorTypes = new string[] { "Association", "Aggregation", "Nesting" };
             if (!relevantConnectorTypes.Contains(conn.Type))
