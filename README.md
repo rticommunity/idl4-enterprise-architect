@@ -15,7 +15,7 @@ https://github.com/rticommunity/idl4-enterprise-architect/releases
 
 Then, double click on its icon and follow the on-screen instructions to complete the installation.
 
-The installation includes **ExampleDataClasses.eap**, an example project file that illustrates the functionality of the extension.
+The installation includes the documentation directory **doc** with the file  [Mapping_UML_to_IDL.pdf](https://github.com/rticommunity/idl4-enterprise-architect/blob/master/doc/Mapping_UML_to_IDL.pdf), this contains a description of the UML to IDL mapping rules. There is also an example UML model **ExampleDataClasses.eap** in the example directory that illustrates the functionality of the extension.
 
 ## Contributing to the Repository
 
