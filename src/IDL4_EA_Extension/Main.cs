@@ -997,6 +997,9 @@ namespace IDL4_EA_Extension
             }
         }
 
+        /*
+         * This outputs an annotation that has no paramaters
+         */
         private static void GenIDL_Annotation(
             String annotationName, bool firstAnnotation,
             TextOutputInterface output, int depth)
@@ -1004,41 +1007,86 @@ namespace IDL4_EA_Extension
             GenIDL_Annotation(annotationName, null, firstAnnotation, output, depth);
         }
 
-        private static void GenIDL_Annotation(
-            String annotationName, String annotationParam1, bool firstAnnotation,
-            TextOutputInterface output, int depth)
+
+        /*
+         * Maps annotations names and parameters from their normalized form to the
+         * syntax specific to the version of IDL.
+         *          * 
+         */
+        private static void GenIDL_MapAnnotation(
+            String normalizedAnnotationName, String normalizedAnnotationParam1,
+            out String mappedAnnotationName, out String mappedAnnotationParam1)
         {
-            if (idlVersion >= IDLVersion.IDL_V400)
+            if ( (idlVersion == IDLVersion.IDL_V350_CONNEXT52 ) && normalizedAnnotationName.Equals("nested") )
             {
-                output.OutputText(depth, "@" + annotationName.ToLower());
-                if (annotationParam1 != null)
+                mappedAnnotationName = "top-level";
+                if ( (normalizedAnnotationParam1 == null ) || normalizedAnnotationParam1.ToLower().Equals("true") )
                 {
-                    output.OutputText("(" + annotationParam1 + ") ");
+                    mappedAnnotationParam1 = "FALSE";
                 }
-                output.OutputTextLine();
-            }
-            else if (idlVersion >= IDLVersion.IDL_V350_XTYPES)
-            {
-                output.OutputText("  //@" + annotationName);
-                if (annotationParam1 != null)
+                else
                 {
-                    output.OutputText("(" + annotationParam1 + ") ");
+                    mappedAnnotationParam1 = "TRUE";
                 }
             }
             else
             {
+                mappedAnnotationName   = normalizedAnnotationName;
+                mappedAnnotationParam1 = normalizedAnnotationParam1;
+            }
+        }
+
+        /*
+         * This outputs an annotation with zero or one paramater.
+         * 
+         * - annotationName. The normalized name of the annotation
+         * 
+         * - annotationParam1. The value of the annotation paramater. May be null if the
+         *   annotation does not have any parameters
+         *   
+         * - firstAnnotation. Indicates whether this is the first annotation being generated for the class or
+         *   the member. This affects the formatting for IDLVersion.IDL_V350_CONNEXT52
+         */
+        private static void GenIDL_Annotation(
+            String annotationName, String annotationParam1, bool firstAnnotation,
+            TextOutputInterface output, int depth)
+        {
+            // Depending on the version of IDL annotations need to be mapped
+            String mappedAnnotationName;
+            String mappedAnnotationParam1;
+            GenIDL_MapAnnotation(annotationName, annotationParam1, out mappedAnnotationName, out mappedAnnotationParam1);
+
+            if (idlVersion >= IDLVersion.IDL_V400)
+            {
+                output.OutputText(depth, "@" + mappedAnnotationName.ToLower());
+                if ( (mappedAnnotationParam1 != null) && !mappedAnnotationParam1.Equals("") ) 
+                {
+                    output.OutputText("(" + mappedAnnotationParam1 + ") ");
+                }
+                //output.OutputTextLine();
+            }
+            else if (idlVersion >= IDLVersion.IDL_V350_XTYPES)
+            {
+                output.OutputText("  //@" + mappedAnnotationName);
+                if ( (mappedAnnotationParam1 != null) && !mappedAnnotationParam1.Equals("") )
+                {
+                    output.OutputText("(" + mappedAnnotationParam1 + ") ");
+                }
+            }
+            else // IDLVersion.IDL_V350_CONNEXT52
+            {
                 if (firstAnnotation)
                 {
-                    output.OutputText("  //@" + annotationName);
+                    output.OutputText("  //@" + mappedAnnotationName);
                 }
                 else {
                     // output.OutputTextLine();
-                    output.OutputText(depth, "    //@" + annotationName);
+                    output.OutputText(depth, "    //@" + mappedAnnotationName);
                 }
 
-                if (annotationParam1 != null)
+                if ( (mappedAnnotationParam1 != null) && !mappedAnnotationParam1.Equals("") )
                 {
-                    output.OutputText(" " + annotationParam1);
+                    output.OutputText(" " + mappedAnnotationParam1);
                 }
             }
         }
@@ -1054,7 +1102,7 @@ namespace IDL4_EA_Extension
                     keyAnnotation,
                     "must_understand",
                     "autoid", "Optional",
-                    "external", "nested",
+                    "external",
                     "oneway", "ami"
                 };
             string[] relevantAnnotationsWithValue = new string[] {
@@ -1149,7 +1197,7 @@ namespace IDL4_EA_Extension
 
         /*
          * Returns a description of the reference relationship along with a decision on
-         * whether the referencec element should appear as a member.
+         * whether the referenced element should appear as a member of the source element.
          * 
          * Background on UML Associations:
          * http://www.uml-diagrams.org/association.html
@@ -1158,13 +1206,52 @@ namespace IDL4_EA_Extension
          * - Be "Association", "Aggregation", or "Nesting"
          * - Be navigable to the referenced element
          * - Have (source) aggregation property of "shared" or "composite"
+         * - We do not look at the TARGET role containment. It does not matter if it is 
+         *   value, reference, or unspecified
+         *                                                                       referencedElem
+         *    +-------------------+  sourceElemEnd       referencedElemEnd  +-----------------+
+         *    |  sourceElementId  | ----------------------------------------| targetElementId |
+         *    +-------------------+               conn                      +-----------------+
+         *    
+         *                                 memberName (computed from relationship name)
+         *                                 
+         * The funtion fills the output paramaters as follows:
+         * 
+         * - includeInSourceElem. Set to TRUE if the target class should be included as 
+         *   a member of the source class. If it is set to FALSE the member will not appear and
+         *   the explantion out parameter will be filled.
+         *   
+         * - explanation. Contains the explanation of why tha target class is not included
+         *   as a member of the source class. Filled if and only if includeInSourceElem = FALSE
+         *   and explain = TRUE.
+         *   
+         * - sourceElemEnd. The connectorId corresponding to the sourceElemId. Note that in the
+         *   UMM model it could be either the SOURCE or TARGET connector. But this function
+         *   normalized it so it it seen from the perspectibe of the sourceElemId. 
+         *   
+         * - referencedElemId. The ElementId of the element at the other side of the relationship
+         *   from the point of view of the sourceElemId.
+         *  
+         * - memberName. The name of the member that would be generated. This is filled even if
+         *   the relationship does not cause a member to be generated, that way the member name
+         *   can be used in the log messages.
+         * 
+         * - referencedElem. The Element corresponding to the referencedElemId. If 
+         *   includeInSourceElem = TRUE, then the referenced element will be a valid element in 
+         *   the repository as this is checked as a condition for includeInSourceElem=TRUE.
          */
         private static void GenIDL_ReferenceDescriptor(
             EA.Repository repository, EA.Connector conn, int sourceElemId, bool explain,
             out EA.ConnectorEnd sourceElemEnd, out EA.ConnectorEnd referencedElemEnd, 
             out int referencedElemId, out EA.Element referencedElem,
+            out String memberName, out bool includeAsReference,
             out bool includeInSourceElem, out String explanation)
         {
+            includeInSourceElem = false;
+            explanation = null;
+            memberName = null;
+            includeAsReference = false;
+
             /* Normalize the relationship identofyign the source and target roles */
             if (sourceElemId == conn.ClientID)
             {
@@ -1180,8 +1267,16 @@ namespace IDL4_EA_Extension
             }
 
             referencedElem = repository.GetElementByID(referencedElemId);
-            includeInSourceElem = false;
-            explanation = null;
+            if (referencedElem == null)
+            {
+                if (explain)
+                {
+                    explanation = "target element with ElementID = " + referencedElemId + " is not found in UML Repository";
+                }
+                return;
+            }
+
+            memberName = GenIDL_GetReferenceName(conn, referencedElemEnd, referencedElem);
 
             // Only consider "Aggregation", "Association", and "Nesting" relationships as reasons to include the
             // referenced element as a member
@@ -1213,7 +1308,7 @@ namespace IDL4_EA_Extension
                 return;
             }
 
-
+            /*
             if (conn.Type.Equals("Association") && !referencedElemEnd.Containment.Equals("Value"))
             {
                 if (explain)
@@ -1222,16 +1317,20 @@ namespace IDL4_EA_Extension
                 }
                 return;
             }
+            */
 
+            // Determine if the referenced element is "by value" or "by reference"
+            // sourceElemEnd.Aggregation can be 0, 1, 2 for  none, shared, composite. See http://www.sparxsystems.com/enterprise_architect_user_guide/12.1/automation_and_scripting/connectorend.html
 
-  
-            if (referencedElem == null)
+            // Note that we alredy know that sourceElemEnd.Aggregation != 0. Otherwise we are not generating the member
+            if ((referencedElemEnd.Containment.Equals("Reference"))
+                 || (referencedElemEnd.Containment.Equals("Unspecified") && sourceElemEnd.Aggregation == 1 ))
             {
-                if (explain)
-                {
-                    explanation = "target element with ElementID = " + referencedElemId + " is not found in UML Repository";
-                }
-                return;
+                includeAsReference = true;
+            }
+            else // in this case either Containment.Equals("Reference") or sourceElemEnd.Aggregation == 2
+            {
+                includeAsReference = false;
             }
 
             includeInSourceElem = true;
@@ -1239,22 +1338,30 @@ namespace IDL4_EA_Extension
         }
 
         /**
-         * Determines if the relationship to the referenced type is such that the referenced type
-         * should be included as part of the referencing type.
+         * Given a class (sourceClass) that is being mapped to IDL, this function is invoked on each reference (connector). 
+         * that the sourceClass has to determine if the reference/connector should result on a member being added to sourceClass.
+         * 
+         * The function returns the fully qualified (and normalized) name for the type referenced by the connector in case 
+         * the referenced type needs to be included as a member of the "sourceClass". If there is no member to be included as
+         * a result of the reference/connector the function returns the null string.
+         * 
+         * In addition to the name of the referenced element the function returns the annotations that the member should have.
          *
-         * Returns the fully qualified normalized name for the referenced type in case it needs to be included
-         * and null if it does need to be included.
-         *
-         * Currently we include the referenced type if an only if the relationship is of type "Aggregation" and it is
-         * navigable from Element classElem to the referenced element.
-         * This means that we ignore relationships of kind "Association"
+         * Paramaters:
+         * - sourceClass. This is the class that is being mapped to IDL
+         * - conn. A connector for sourceClass
+         * - (out) memberName. The member being generated. 
+         *   type if the multiplicity of the relationship requires that.
+         * - (out) annotations. The annotations on the member.
+         * - (return value) the memberType for memberName. The memberType includes fully-scoped typenames
+         *   as well as any needed sequences 
          */
         private static String GenIDL_GetReferencedTypeToInclude(
-            out String annotation, out String memberName,
+            out List<String> annotations, out String memberName,
             Repository repository,
-            Element classElem, EA.Connector conn, TextOutputInterface output, int depth)
+            Element sourceClass, EA.Connector conn, TextOutputInterface output, int depth)
         {
-            annotation = null;
+            annotations   = null;
             memberName    = null;
 
             // Generalization (Inheritance) does not cause the referenced element to 
@@ -1270,14 +1377,17 @@ namespace IDL4_EA_Extension
             int referencedElemId;
             String explanation;
             bool includeReferencedTypeAsMember;
+            bool includeAsReference;
 
             bool reportExplanationText = idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_BASIC;
 
-            GenIDL_ReferenceDescriptor(repository, conn, classElem.ElementID, reportExplanationText,
+            // This resolves the details of the reference and determines whether a member should be
+            // generated of not.
+            GenIDL_ReferenceDescriptor(repository, conn, sourceClass.ElementID, reportExplanationText,
                 out thisElemEnd, out referencedElemEnd, out referencedElemId, out referencedElem, 
+                out memberName, out includeAsReference,
                 out includeReferencedTypeAsMember, out explanation);
 
-            memberName = GenIDL_GetReferenceName(conn, referencedElemEnd, referencedElem);
             if ( !includeReferencedTypeAsMember ) {
                 if ( reportExplanationText ) {
                     String referencedElementClassName = "Unknown Type";
@@ -1294,7 +1404,7 @@ namespace IDL4_EA_Extension
 
             /* If we are here we know includeReferencedTypeAsMember == TRUE
              * this means referenced class as a member of this element 
-             * and also that referencedElem != null as this is checked as part of the condition to include that class */
+             * and also that referencedElem != null as this is checked by GenIDL_ReferenceDescriptor() */
             String memberTypeScoped = null;
             String cardinality = referencedElemEnd.Cardinality;
            
@@ -1302,44 +1412,35 @@ namespace IDL4_EA_Extension
             String normalizedMemberType = IDL_NormalizeMemberTypeName(referencedElem.Name);
             memberTypeScoped = GenIDL_GetFullPackageName(repository, referencedElem) + normalizedMemberType;
 
-            if (cardinality.Equals("") || cardinality.Equals("1") || cardinality.Equals("0"))
+            // Apply cardinality rules. Can cause member to be @Optional, or a sequence
+            if (cardinality.Equals("0..1"))
             {
-                // Use pointer notation for IDL_V350_CONNEXT52
-                if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
+                // Zero or one -> Optional
+                if (annotations == null )
                 {
-                    memberTypeScoped = memberTypeScoped + "*";
+                    annotations = new List<String>();
                 }
-                else // Otherwise use an annotation
-                {
-                    annotation = "@Shared";
-                }
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
-                {
-                    if (cardinality.Equals(""))
-                    {
-                        output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality is unspecified */");
-                    }
-                    else
-                    {
-                        output.OutputTextLine(depth, "/* Mapping to Shared because relation cardinality == " + cardinality + " */");
-                    }
-                }
-            }
-            else if (cardinality.Equals("0..1"))
-            {
-                annotation = "@Optional";
+                annotations.Add("@Optional");
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                 {
                     output.OutputTextLine(depth, "/* Mapping to Optional because relation cardinality == \"0..1\" */");
                 }
             }
-            else if (cardinality.Equals("*") || cardinality.EndsWith("..*"))
+            else if (cardinality.Equals("*") || cardinality.EndsWith("..*") || cardinality.EndsWith(".."))
             {
                 // No upper limit -> unbounded sequence
                 memberTypeScoped = "sequence<" + memberTypeScoped + ">";
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                 {
-                    output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relation cardinality is \"*\" (or \"..*\") */");
+                    output.OutputTextLine(depth, "/* Mapping to unbounded sequence because relation cardinality is \"*\", \"..*\", or \"..\" */");
+                }
+            }
+            else if (cardinality.Equals("") || cardinality.Equals("1") || cardinality.Equals("0"))
+            {
+                // Map to regular member. No sequence, no optional
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "/* Mapping to regular member because relation cardinality is \"\", \"1\", or \"0\" */");
                 }
             }
             else
@@ -1382,6 +1483,27 @@ namespace IDL4_EA_Extension
 
             }
 
+            // Members included by reference are mapped to the @Shared annotation 
+            if (includeAsReference)
+            {
+                if (idlVersion == IDLVersion.IDL_V350_CONNEXT52)
+                {
+                    memberTypeScoped = memberTypeScoped + "*";
+                }
+                else // Otherwise use an annotation
+                {
+                    if (annotations == null)
+                    {
+                        annotations = new List<String>();
+                    }
+                    annotations.Add("@Shared");
+                }
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth, "/* Mapping to Shared because Containment is 'Reference' or Aggregation is 'Shared' */");
+                }
+            }
+
             return memberTypeScoped;
         }
 
@@ -1393,22 +1515,30 @@ namespace IDL4_EA_Extension
 
             foreach (EA.Connector conn in classElem.Connectors)
             {
-                String annotation = null;
+                List<String> annotations = null;
                 String refname = null;
-                String referencedType = GenIDL_GetReferencedTypeToInclude(out annotation, out refname, repository, classElem, conn, output, depth);
+                String referencedType = GenIDL_GetReferencedTypeToInclude(out annotations, out refname, repository, classElem, conn, output, depth);
 
                 if (referencedType != null)
                 {
-                    if (annotation != null)
+                    if (annotations != null)
                     {
                         if (idlVersion >= IDLVersion.IDL_V400)
                         {
-                            output.OutputText(depth, annotation + " ");
+                            output.OutputText(depth, annotations[0] + " ");
+                            for (int i = 1; i < annotations.Count; ++i)
+                            {
+                                output.OutputText(annotations[i] + " ");
+                            }
                             output.OutputTextLine(referencedType + "  " + refname + "; ");
                         }
                         else
                         {
-                            output.OutputTextLine(depth, referencedType + "  " + refname + "; //" + annotation);
+                            output.OutputTextLine(depth, referencedType + "  " + refname + "; //" + annotations[0]);
+                            for (int i=1; i< annotations.Count; ++i)
+                            { 
+                                output.OutputTextLine(depth, "//" + annotations[i]);
+                            }
                         }
                     }
                     else
@@ -1602,10 +1732,13 @@ namespace IDL4_EA_Extension
                 int referencedElemId;
                 Element referencedElem;
                 bool includeReferencedTypeAsMember;
+                String memberName;
+                bool includeAsReference;
 
                 // Resolve the reference but ommit any explanatory text
                 GenIDL_ReferenceDescriptor(repository, conn, classElem.ElementID, false,
                                             out thisElemEnd, out referencedElemEnd, out referencedElemId, out referencedElem,
+                                            out memberName, out includeAsReference,
                                             out includeReferencedTypeAsMember, out explanation);
 
                 // If the reference did not have to be included, there there is no dependency on it.
@@ -1621,7 +1754,7 @@ namespace IDL4_EA_Extension
                     {
                         output.OutputText("    ( \"" + GenIDL_GetFullPackageName(repository, classElem) + "\" , \"" + classElem.Name + "\" )");
                         output.OutputText("  depends on  ( " + GenIDL_GetFullPackageName(repository, referencedElem) + "\" , \"" + referencedElem.Name + "\" )");
-                        output.OutputTextLine("   dependency:  aggregation \"" + GenIDL_GetReferenceName(conn, referencedElemEnd, referencedElem) + "\"");
+                        output.OutputTextLine("   dependency:  aggregation \"" + memberName + "\"");
                     }
 
                     return false;
@@ -1713,11 +1846,10 @@ namespace IDL4_EA_Extension
             string[] relevantAnnotationsNoValue = new string[] {
                 "autoid",
                 "final", "mutable", "extensible",
-                "nested",
                 "service"
             };
             string[] relevantAnnotationsWithValue = new string[] {
-                "Extensibility", "verbatim"
+                "Extensibility", "verbatim", "nested"
             };
 
             string ddsTag = "DDS";
