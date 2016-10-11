@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.9";
+        private const String IDL_GENERATOR_REVISION = "1.10";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -394,9 +394,9 @@ namespace IDL4_EA_Extension
         private static void GenIDL_PrebuiltUMLTypes(TextOutputInterface output)
         {
             String builtinTypes =
-                "module UML_Extension {\n" +
-                "    typedef long long dateTime;" +
-                "};\n";
+                "module UML_Extension {" + Environment.NewLine +
+                "    typedef long long dateTime;" + Environment.NewLine +
+                "};";
             output.OutputTextLine(builtinTypes);
         }
 
