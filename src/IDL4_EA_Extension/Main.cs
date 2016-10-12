@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.10";
+        private const String IDL_GENERATOR_REVISION = "1.9.1";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -902,7 +902,7 @@ namespace IDL4_EA_Extension
                 /* This code was trying to get the fully-qualified name but it throws an exception
                  */
                 if ( child.ClassifierID == 0 ) {
-                    typeName = IDL_NormalizeMemberTypeName(child.Type);
+                    typeName = IDL_NormalizeMemberTypeNameClassiffiedID0(child.Type);
                 }
                 else {
                     Element attributeType = repository.GetElementByID(child.ClassifierID);
@@ -910,6 +910,13 @@ namespace IDL4_EA_Extension
                     typeName = GenIDL_GetFullPackageName(repository, attributeType)
                         + IDL_NormalizeMemberTypeName(attributeType.Name);
                 }
+
+                //DEBUG::
+                if (typeName.Equals("dateTime") )
+                {
+                    output.OutputTextLine(depth, "//DEBUG: typeName= " + typeName + " classifiedId= " + child.ClassifierID);
+                }
+
 
                 int lower  = 0;
                 int upper  = 0;
@@ -1949,6 +1956,32 @@ namespace IDL4_EA_Extension
             return IDL_NormalizeUserDefinedClassifierName(normalizedType);
         }
 
+        private static readonly string[] umlExtensionTypes = new string[] { "dateTime" };
+
+        /** Normalizes a type name converting it into a legal IDL4  type.
+         *
+         * Like IDL_NormalizeMemberTypeName() except specialized to types with classifierID=0
+         * TODO: Need to verify whether primitive types always have classifierID=0 in which case
+         * IDL_NormalizeMemberTypeName should be rewriten
+         */
+        private static String IDL_NormalizeMemberTypeNameClassiffiedID0(String typeName)
+        {
+            String normalizedType = MultipleSpaces.Replace(typeName, " ");
+            for (int typeFamily = 0; typeFamily < primtiveTypeVariations.GetLength(0); ++typeFamily)
+            {
+                if (primtiveTypeVariations[typeFamily].Contains(normalizedType.ToLower()))
+                {
+                    return primtiveTypeVariations[typeFamily][0];
+                }
+            }
+
+            if (umlExtensionTypes.Contains(typeName) )
+            {
+                return "UML_Extension::" + typeName;
+            }
+
+            return IDL_NormalizeUserDefinedClassifierName(normalizedType);
+        }
 
         private static readonly string[] keyAnnotation = new string[] { "Key", "key" };
         private static readonly string[] mustUnderstandAnnotation = new string[] { "must_understand" };
