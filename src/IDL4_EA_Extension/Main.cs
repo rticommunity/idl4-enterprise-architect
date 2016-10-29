@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.9.1";
+        private const String IDL_GENERATOR_REVISION = "1.10";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -556,21 +556,39 @@ namespace IDL4_EA_Extension
         private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
         private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte" };
         private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
+
         private static readonly string[][] xsd_primtiveTypeVariations = {
                 xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
-            };
+        };
 
-        private static String IDL_XSDprimitive2IDLprimitive(String xsdPrimitiveType)
+        // These are some types that we hardcode based on their name and their base-class name
+        private static readonly string[] xsd_builtinOctet2Types = new string[] { "typedef octet HexBinary16[2]", "HexBinary16", "hexBinary"};
+        private static readonly string[][] xsd_builtinTypeVariations = {
+                xsd_builtinOctet2Types
+        };
+
+        private static String IDL_XSDbuiltin2IDLdeclaration(String classifierName, String baseClassifierName)
         {
-            for (int typeFamily = 0; typeFamily < xsd_primtiveTypeVariations.GetLength(0); ++typeFamily)
+            // First check if it is one of the well-known builtin types
+            for (int typeFamily = 0; typeFamily < xsd_builtinTypeVariations.GetLength(0); ++typeFamily)
             {
-                if (xsd_primtiveTypeVariations[typeFamily].Contains(xsdPrimitiveType))
+                if (xsd_builtinTypeVariations[typeFamily][1].Equals(classifierName) 
+                    && xsd_builtinTypeVariations[typeFamily][2].Equals(baseClassifierName) )
                 {
-                    return xsd_primtiveTypeVariations[typeFamily][0];
+                    return xsd_builtinTypeVariations[typeFamily][0];
                 }
+
             }
 
-            return xsdPrimitiveType;
+            // These we determine based only on the base class name
+            for (int typeFamily = 0; typeFamily < xsd_primtiveTypeVariations.GetLength(0); ++typeFamily)
+            {
+                if (xsd_primtiveTypeVariations[typeFamily].Contains(baseClassifierName))
+                {
+                    return  "typedef " + xsd_primtiveTypeVariations[typeFamily][0] + " " + classifierName + ";";
+                }
+            }
+            return null;
         }
 
         private static void GenIDL_ClassTypedef(Element classElem, TextOutputInterface output, int depth)
@@ -610,8 +628,13 @@ namespace IDL4_EA_Extension
             {
                 output.OutputTextLine(depth, "/* Mapping to typedef because generated links are: " + genLinks + " */");
             }
-            String primitiveIDLType = IDL_XSDprimitive2IDLprimitive(genLinksBaseClass);
-            output.OutputTextLine(depth, "typedef " + primitiveIDLType + " " + IDL_NormalizeUserDefinedClassifierName(classElem.Name) + ";");
+
+            String classifierName = IDL_NormalizeUserDefinedClassifierName(classElem.Name);
+            String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, genLinksBaseClass);
+            if (typeDeclaration != null)
+            {
+                output.OutputTextLine(depth, typeDeclaration);
+            }
             return;
         }
 
