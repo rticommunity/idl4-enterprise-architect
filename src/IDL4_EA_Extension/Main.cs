@@ -138,7 +138,7 @@ namespace IDL4_EA_Extension
     public class Main
     {
 
-        private const String IDL_GENERATOR_REVISION = "1.10";
+        private const String IDL_GENERATOR_REVISION = "1.11";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -562,20 +562,20 @@ namespace IDL4_EA_Extension
         };
 
         // These are some types that we hardcode based on their name and their base-class name
-        private static readonly string[] xsd_builtinOctet2Types = new string[] { "typedef octet HexBinary16[2]", "HexBinary16", "hexBinary"};
-        private static readonly string[][] xsd_builtinTypeVariations = {
-                xsd_builtinOctet2Types
+        private static readonly string[] xsd_builtinOctet2TypesTypedef = new string[] { "typedef octet HexBinary16[2]", "HexBinary16", "hexBinary"};
+        private static readonly string[][] xsd_builtinTypedefs = {
+                xsd_builtinOctet2TypesTypedef
         };
 
         private static String IDL_XSDbuiltin2IDLdeclaration(String classifierName, String baseClassifierName)
         {
             // First check if it is one of the well-known builtin types
-            for (int typeFamily = 0; typeFamily < xsd_builtinTypeVariations.GetLength(0); ++typeFamily)
+            for (int typeFamily = 0; typeFamily < xsd_builtinTypedefs.GetLength(0); ++typeFamily)
             {
-                if (xsd_builtinTypeVariations[typeFamily][1].Equals(classifierName) 
-                    && xsd_builtinTypeVariations[typeFamily][2].Equals(baseClassifierName) )
+                if (xsd_builtinTypedefs[typeFamily][1].Equals(classifierName) 
+                    && xsd_builtinTypedefs[typeFamily][2].Equals(baseClassifierName) )
                 {
-                    return xsd_builtinTypeVariations[typeFamily][0];
+                    return xsd_builtinTypedefs[typeFamily][0] + ";";
                 }
 
             }
