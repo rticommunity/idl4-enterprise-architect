@@ -419,22 +419,29 @@ namespace IDL4_EA_Extension
         }
 
         /** Outputs UML "primitive" types that are not primitive in IDL
+         * 
+         * This list is empty. It used to contain dateTime but we are now mapping it to string.
+         *
          */
         private static void GenIDL_PrebuiltUMLTypes(TextOutputInterface output)
         {
-            String builtinTypes =
+     
+            String builtinTypes = 
                 "module UML_Extension {" + Environment.NewLine +
-                "    typedef long long dateTime;" + Environment.NewLine +
+                "    // Place the type declarations below" + Environment.NewLine +
                 "};";
-            output.OutputTextLine(builtinTypes);
+
+            // Uncomment the lines below types are added to UML_Extension
+            
+            //output.OutputTextLine("/* ******************************************************************* */");
+            //output.OutputTextLine("/* These are UML builtin primitive types that are not primitive in IDL */");
+            //output.OutputTextLine(builtinTypes);
         }
 
         internal static void GenIDL(Repository repository, bool isPreview, TextOutputInterface output, HashSet<String> uncheckedElem)
         {
             output.Clear();
 
-            output.OutputTextLine("/* ******************************************************************* */");
-            output.OutputTextLine("/* These are UML builtin primitive types that are not primitive in IDL */");
             GenIDL_PrebuiltUMLTypes(output);
             output.OutputTextLine("");
 
@@ -572,7 +579,7 @@ namespace IDL4_EA_Extension
         }
 
         /*
-         * This function tries to identify all the XSDSimpleTypes. 
+         * This function identifies the classes created from an XSDsimpleType. 
          * These are mapped to a typedef in the IDL
          */
         private static bool IsXSDSimpleType(Element classElem)
@@ -581,26 +588,40 @@ namespace IDL4_EA_Extension
         }
 
         /*
-         * This function tries to identify all the XSDTopLevelAttributes 
+         * This function identifies the classes created from an XSDtopLevelAttribute. 
          * These are mapped to a typedef in the IDL
          */
-        private static bool IsXSDTopLevelAttributes(Element classElem, TextOutputInterface output, int depth)
+        private static bool IsXSDTopLevelAttribute(Element classElem)
         {
-            //TODO: This is a very simplistic criteria. May need to be enhanced
-            bool result = classElem.HasStereotype("XSDtopLevelAttribute");             
-            output.OutputTextLine(depth, "// Debug IsXSDTopLevelAttributes( \"" + classElem.Name + "\") = " + result);
+            return classElem.HasStereotype("XSDtopLevelAttribute");             
+        }
 
-            return result;
+        /*
+         * This function identifies the classes created from an XSDattributeGroup. 
+         * These may need to handled specially.
+         */
+        private static bool IsXSDAttributeGroup(Element classElem)
+        {
+            return classElem.HasStereotype("XSDattributeGroup");             
+        }
+       
+        /*
+         * This function identifies the classes created from an XSDunion. 
+         * These may need to handled specially.
+         */
+        private static bool IsXSDUnion(Element classElem)
+        {
+            return classElem.HasStereotype("XSDunion");             
         }
 
         /*
          * This function to identify XSD elemenst that are mapped to a Typedef.
          * Currently these are the XSD simple types and the top-level attributes 
          */
-        private static bool IsXSDTypeMappedToTypedef(Element classElem, TextOutputInterface output, int depth)
+        private static bool IsXSDTypeMappedToTypedef(Element classElem)
         {
             // Check if this was a XSD simpleType or a XSD top level attribute.
-            return IsXSDSimpleType(classElem) || IsXSDTopLevelAttributes(classElem, output, depth);
+            return IsXSDSimpleType(classElem) || IsXSDTopLevelAttribute(classElem);
         }
 
         //TODO: IDL_XSDprimitive2IDLprimitive should be deprecated. Use IDL_NormalizeMemberTypeName() instead
@@ -608,7 +629,7 @@ namespace IDL4_EA_Extension
         private static readonly string[] xsd_ulongTypes = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
         private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
         private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte" };
-        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
+        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary", "dateTime", "date" };
 
         private static readonly string[][] xsd_primtiveTypeVariations = {
                 xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
@@ -633,12 +654,12 @@ namespace IDL4_EA_Extension
 
             }
 
-            // These we determine based only on the base class name
+            // These we determine based only on the base classifier name
             for (int typeFamily = 0; typeFamily < xsd_primtiveTypeVariations.GetLength(0); ++typeFamily)
             {
                 if (xsd_primtiveTypeVariations[typeFamily].Contains(baseClassifierName))
                 {
-                    return  "typedef    " + xsd_primtiveTypeVariations[typeFamily][0] + " " + classifierName + ";";
+                    return  "typedef " + xsd_primtiveTypeVariations[typeFamily][0] + " " + classifierName + ";";
                 }
             }
             return null;
@@ -729,7 +750,11 @@ namespace IDL4_EA_Extension
             // in successive passes
 
             // Generate typedef for enums and structures
-            output.OutputTextLine(depth+1, "// Debug Generating Enums and forward struct declarations");
+            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+            {
+                output.OutputTextLine(depth, "/* Generating Enums and forward struct declarations */");
+            }
+
             foreach (Element e in package.Elements)
             {
                 if (IsElementUnchecked(uncheckedElem, packageFullName, e.Name))
@@ -752,15 +777,13 @@ namespace IDL4_EA_Extension
                 }
             }
 
-            // Generate typedef for XSDSimpleTypes
-            output.OutputTextLine(depth+1, "// Debug Generating typedef for XSDSimpleTypes");
             foreach (Element e in package.Elements) 
             {
                 if (IsXSDSimpleType(e))
                 {
                     if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                     {
-                        output.OutputTextLine(depth+1, "/* Mapping to typedef because IsXSDSimpleType is true */");
+                        output.OutputTextLine(depth+1, "/* Mapping to typedef because of stereotype <<XSDsimpleType>> */");
                     }
 
                     GenIDL_XSDSimpleType(repository, e, null, output, depth + 1);
@@ -769,11 +792,40 @@ namespace IDL4_EA_Extension
                         completedClasses.Add(e.ElementID);
                     }
                     emptyModuleContent = false;
-                }
-  
+                }  
             }
 
-            output.OutputTextLine(depth+1, "// Debug Generating Nested Pakages");
+            // Generate typedef for XSDtopLevelAttribute
+            foreach (Element e in package.Elements)
+            {
+                if (IsXSDTopLevelAttribute(e))
+                {
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth + 1, "/* Mapping to typedef because of stereotype <<XSDtopLevelAttribute>> */");
+                    }
+
+                    GenIDL_XSDTopLevelAttribute(repository, e, null, output, depth + 1);
+                    if (completedClasses != null)
+                    {
+                        completedClasses.Add(e.ElementID);
+                    }
+                    emptyModuleContent = false;
+                }
+            }
+
+            // Generate typedef for XSDsimpleElement that appear nested within a class
+            foreach (Element e in package.Elements)
+            {
+                bool generatedElements = false;
+                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null))
+                {
+                    generatedElements = GenIDLNestedSimpleElementTypedefs(repository, e, output, depth, completedClasses);
+                }
+                emptyModuleContent = false;
+            }
+
+            // Recursively Generate First-Pass on the Nested Packages
             foreach (Package p in package.Packages)
             {
                 GenIDL_ModuleFirstPass(repository, p, false,
@@ -978,6 +1030,14 @@ namespace IDL4_EA_Extension
                 return false;
             }
 
+            // So far we only need to generate members  nested elements for XSD unions. Other types have explicit attributes
+            // for each member and the nested elements only represent embedded type declarations which we already handles
+            // generating typedef. See GehIDL_NestedSimpleElementTypedefs()
+            if ( !IsXSDUnion(classElem) )
+            {
+                return false;
+            }
+
             String parentName = classElem.Name;
             foreach (Element child in classElem.Elements)
             {
@@ -986,11 +1046,54 @@ namespace IDL4_EA_Extension
                     output.OutputTextLine(depth, "// Generating member because of nested element");
                 }
                 String typeName = GenIDL_GetTypeOfXSDSimpleType(repository, child, parentName, output, depth);
-                output.OutputTextLine(depth + 1, typeName + "  " + child.Name + ";");
+                output.OutputTextLine(depth, typeName + "  " + child.Name + ";");
 
                 generatedElements = true;
             }
 
+            return generatedElements;
+        }
+
+        /* Generate a typedef for each nested XSDsimpleElement that is declared in-line within a type
+         * This happens for example when we convert from an XSD that has elements defined inline as simple types
+         */
+        private static bool GenIDLNestedSimpleElementTypedefs(Repository repository, Element classElem,
+            TextOutputInterface output, int depth,
+            HashSet<long> completedClasses)
+        {
+            bool generatedElements = false;
+
+            if (classElem.Elements.Count == 0)
+            {
+                return false;
+            }
+
+            String parentName = classElem.Name;
+            foreach (Element child in classElem.Elements)
+            {
+                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                {
+                    output.OutputTextLine(depth + 1, "// Generating typedef because nested element defines a XSDsimpleType");
+                }
+                String baseClassifierName  = GenIDL_GetTypeOfXSDSimpleType(repository, child, parentName, output, depth);
+                String classifierName = parentName + "_" + child.Name;
+
+                // Check if it is one of the builtin types
+                String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassifierName);
+                if (typeDeclaration == null)
+                {
+                    typeDeclaration = "typedef " + baseClassifierName + " " + classifierName + ";";
+                }
+                output.OutputTextLine(depth + 1, typeDeclaration);
+
+                if (completedClasses != null)
+                {
+                    completedClasses.Add(child.ElementID);
+                }
+
+                generatedElements = true;
+            }
+           
             return generatedElements;
         }
 
@@ -1014,6 +1117,10 @@ namespace IDL4_EA_Extension
                 return false;
             }
 
+            // These need to be handled specially
+            bool isXSDattributeGroup = IsXSDAttributeGroup(classElem);
+            int memberIndex = 0;
+
             foreach (EA.Attribute child in classElem.Attributes)
             {
                 // This does not get the fully qualified type name. We need that to fully resolve
@@ -1026,18 +1133,18 @@ namespace IDL4_EA_Extension
                     typeName = IDL_NormalizeMemberTypeNameClassiffiedID0(child.Type);
                 }
                 else {
-                    Element attributeType = repository.GetElementByID(child.ClassifierID);
-                    Package attributePackage = repository.GetPackageByID(attributeType.PackageID);
-                    typeName = GenIDL_GetFullPackageName(repository, attributeType)
-                        + IDL_NormalizeMemberTypeName(attributeType.Name);
-                }
+                    Element attributeTypeElem = repository.GetElementByID(child.ClassifierID);
 
-                //DEBUG::
-                if (typeName.Equals("dateTime") )
-                {
-                    output.OutputTextLine(depth, "//DEBUG: typeName= " + typeName + " classifiedId= " + child.ClassifierID);
+                    // Need to identify the case where the attribute type is defined nested in the container class
+                    // in that case the type was generated as a typedef with the class name as prefix.
+                    String attributeTypeName = attributeTypeElem.Name;
+                    if (attributeTypeElem.ParentID == classElem.ElementID)
+                    {
+                        attributeTypeName = IDL_NormalizeMemberTypeName(classElem.Name) + "_" + attributeTypeName;
+                    }
+                    typeName = GenIDL_GetFullPackageName(repository, attributeTypeElem)
+                        + IDL_NormalizeMemberTypeName(attributeTypeName);
                 }
-
 
                 int lower  = 0;
                 int upper  = 0;
@@ -1053,6 +1160,14 @@ namespace IDL4_EA_Extension
                 String effectiveTypeName   = typeName;
                 String effectiveMemberName = child.Name;
                 String extraAnnotation = null;
+
+                // In the case of XSDAttributeGroup the generated UML class has all members with the same name
+                // this is illigal. As a workaround we append a number to each member name to make it unique.
+                if (isXSDattributeGroup)
+                {
+                    effectiveMemberName += ++memberIndex;
+                }
+
                 if (upper == 0) // Unbounded sequence
                 {
                     //output.OutputText(attributeDepth, "sequence<" + typeName + "> " + child.Name + ";");
@@ -1795,6 +1910,54 @@ namespace IDL4_EA_Extension
             }
      
             String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
+            // output.OutputTextLine(depth, "// Debug GenIDL_XSDSimpleType cl:" + classifierName + " base:" + baseClassName);
+            if (typeDeclaration != null)
+            {
+                output.OutputTextLine(depth, typeDeclaration);
+            }
+            else
+            {
+                output.OutputTextLine(depth,
+                   "typedef " + baseClassName + "     " + classifierName + ";");
+            }
+        }
+
+
+        private static void GenIDL_XSDTopLevelAttribute(Repository repository, Element elem, String parentName,
+             TextOutputInterface output, int depth)
+        {
+            // The attribute may reference an existing type. In this case GenIDL_GetTypeOfXSDSimpleType()
+            // should resolve the type
+            String baseClassName = GenIDL_GetTypeOfXSDSimpleType(repository, elem, parentName, output, depth);
+
+            // If GenIDL_GetTypeOfXSDSimpleType() does not find the type, then it may be the case that the
+            // attribute defines an simple type within it. This is similar to how elements in a XSD complex type
+            // may define their types in-line. See GenIDL_NestedElements()
+            if (baseClassName == null)
+            {
+                baseClassName = "/* Error cannot resolve type for XSDtopLevelAttribute */";
+
+                if (elem.Elements.Count > 0)
+                {
+                    Element child = elem.Elements.GetAt(0);
+                    baseClassName = GenIDL_GetTypeOfXSDSimpleType(repository, child, elem.Name, output, depth);
+                }
+            }
+
+            if (baseClassName == null)
+            {
+                baseClassName = "/* Error cannot resolve type for XSDtopLevelAttribute */";
+            }
+
+            String classifierName = IDL_NormalizeUserDefinedClassifierName(elem.Name);
+            if (parentName != null)
+            {
+                classifierName = parentName + "_" + classifierName;
+            }
+
+
+            String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
+            // output.OutputTextLine(depth, "// Debug GenIDL_XSDTopLevelAttribute cl:" + classifierName + " base:" + baseClassName);
             if (typeDeclaration != null)
             {
                 output.OutputTextLine(depth, typeDeclaration);
@@ -1827,12 +1990,15 @@ namespace IDL4_EA_Extension
                 return false;
             }
 
-            if (IsXSDSimpleType(classElem))
+            // These are generated in the first pass
+            if (IsElementEnum(classElem))
             {
                 return false;
             }
 
-            if (IsElementEnum(classElem)) {
+            // These are generated as typedef
+            if ( IsXSDTypeMappedToTypedef(classElem) )
+            {
                 return false;
             }
 
@@ -1978,17 +2144,13 @@ namespace IDL4_EA_Extension
             HashSet<String> uncheckedElem, String elementPath)
         {
             // If it generated as typedef there is nothing to do because we already generated a typedef for it...
-            if ( IsXSDTypeMappedToTypedef(classElem, output, depth) )
+            if ( IsXSDTypeMappedToTypedef(classElem) )
             {
                 return;
             }
 
             String className = IDL_NormalizeUserDefinedClassifierName(classElem.Name);
             String baseClassName = GetIDL_getBaseClass(repository, classElem);
-            if (baseClassName == null)
-            {
-                output.OutputText(depth, "/* Warning: empty base class ommitted for " + classElem.Name + "*/");
-            }
 
             // In IDL4 and higher annotations are before the class
             if  (idlVersion >= IDLVersion.IDL_V400) {
@@ -2011,6 +2173,7 @@ namespace IDL4_EA_Extension
             {
                 emptyClassContent = false;
             }
+            
             if (GenIDL_NestedElements(repository, classElem, output, depth + 1))
             {
                 emptyClassContent = false;
@@ -2137,6 +2300,8 @@ namespace IDL4_EA_Extension
             return IDL_NormalizeUserDefinedClassifierName(normalizedType);
         }
 
+        // This list needs to be consistent with the types generated by GenIDL_PrebuiltUMLTypes
+        // The list is now empty. Used to contain dateTime but we are now mapping to string.
         private static readonly string[] umlExtensionTypes = new string[] { "dateTime" };
 
         /** Normalizes a type name converting it into a legal IDL4  type.
