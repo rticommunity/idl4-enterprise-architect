@@ -5,7 +5,7 @@ The IDL4 extension creates a menu entry in Sparx Enterprise Architect that can b
 
 To install the IDL4 extension you must have Sparx Systems Enterprise Architect already installed in your system. The IDL4 extension has been tested with Sparx Enterprise Architect version 10 and version 12.
 
-The IDL generated uses the syntax of the latest version of the [OMG IDL specification: IDL 4.0](http://www.omg.org/spec/IDL/4.0/). Note that the syntax of annotations is not fully compliant with IDL 4.0. Rather it uses the OMG DDS-XTYPES syntax that provides backwards compatibility with earlier versions of IDL compilers.
+The IDL generated uses the syntax of the latest version of the [OMG IDL specification: IDL 4.1](http://www.omg.org/spec/IDL/). Note that the syntax of annotations is not fully compliant with IDL 4.1. Rather it uses the OMG DDS-XTYPES syntax that provides backwards compatibility with earlier versions of IDL compilers.
 
 Please use the [RTI Community forums](http://community.rti.com) to discuss the plugin and provide feedback.
 
