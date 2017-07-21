@@ -134,6 +134,48 @@ namespace IDL4_EA_Extension
         String               explanation;
     };
 
+    /* This is a helper class to track that the IDL generation for a package or an class
+     * has been completed
+     * 
+     *  Code generation for a package is completed when code generation has been completed
+     *  for all contained classed and packages. This definition is recusive.
+     */
+    class CodegenCompleteDatabase
+    {
+        public CodegenCompleteDatabase()
+        {
+            completedClasses = new HashSet<long>();
+            completedPackages = new HashSet<long>();
+        }
+
+        public void AddCompletedPackage(EA.Package package)
+        {
+            completedPackages.Add(package.PackageID);
+        }
+        public void AddGeneratedClass(EA.Element element)
+        {
+            completedClasses.Add(element.ElementID);
+        }
+
+        public bool IsPackageComplete(EA.Package package)
+        {
+            return completedPackages.Contains(package.PackageID);
+        }
+
+        public bool IsClassGenerated(EA.Element element)
+        {
+            return completedClasses.Contains(element.ElementID);
+        }
+
+        public bool IsClassIdGenerated(int referencedElemId)
+        {
+            return completedClasses.Contains(referencedElemId);
+        }
+        private HashSet<long> completedClasses;
+        private HashSet<long> completedPackages;
+    };
+
+
     [ComVisible(true)]
     public class Main
     {
@@ -390,14 +432,14 @@ namespace IDL4_EA_Extension
                 // display package
                 // output.OutputTextLine("Displaying Package: " + package.Name);
                 Dictionary<long, bool> moduleRelevance = new Dictionary<long, bool>();
-                HashSet<long> dummyCompletedClases = new HashSet<long>();
+                CodegenCompleteDatabase dummyCompletedDB = new CodegenCompleteDatabase();
                 UpdateModuleRelevance(moduleRelevance, package, output);
                 Main.GenIDL_ModuleFirstPass(repository, package, true,
                     output, elementNames.Length - 1, pathToElement, uncheckedElem, moduleRelevance, null);
                 int generatedItemCount;
                 Main.GenIDL_ModuleSecondPass(repository, package, true,
                     output, elementNames.Length - 1, pathToElement,
-                    out generatedItemCount, uncheckedElem, moduleRelevance, dummyCompletedClases);
+                    out generatedItemCount, uncheckedElem, moduleRelevance, dummyCompletedDB);
             }
             else if (classElem != null)
             {
@@ -418,24 +460,25 @@ namespace IDL4_EA_Extension
             }
         }
 
+        private static String UML_EXTENSION_MODULE_NAME = "UML_Extension";
+
         /** Outputs UML "primitive" types that are not primitive in IDL
          * 
-         * This list is empty. It used to contain dateTime but we are now mapping it to string.
-         *
          */
         private static void GenIDL_PrebuiltUMLTypes(TextOutputInterface output)
         {
      
             String builtinTypes = 
-                "module UML_Extension {" + Environment.NewLine +
+                "module " + UML_EXTENSION_MODULE_NAME + " { " + Environment.NewLine +
                 "    // Place the type declarations below" + Environment.NewLine +
+                "    typedef long long dateTime;" + Environment.NewLine +
                 "};";
 
             // Uncomment the lines below types are added to UML_Extension
             
-            //output.OutputTextLine("/* ******************************************************************* */");
-            //output.OutputTextLine("/* These are UML builtin primitive types that are not primitive in IDL */");
-            //output.OutputTextLine(builtinTypes);
+            output.OutputTextLine("/* ******************************************************************* */");
+            output.OutputTextLine("/* These are UML builtin primitive types that are not primitive in IDL */");
+            output.OutputTextLine(builtinTypes);
         }
 
         internal static void GenIDL(Repository repository, bool isPreview, TextOutputInterface output, HashSet<String> uncheckedElem)
@@ -452,10 +495,10 @@ namespace IDL4_EA_Extension
             // moduleRelevance holds the modules relevant for IDL generation
             Dictionary<long, bool> moduleRelevance = new Dictionary<long, bool>();
 
-            // completedClasses holds the classes for which code has been completely generated
-            // such that we can generate code that depends on these classes
-            HashSet<long> completedClasses = new HashSet<long>();
+            // completionDB holds the classes and packages for which code
+            // generation has been completed
 
+            CodegenCompleteDatabase completionDB = new CodegenCompleteDatabase();
             foreach (Package model in repository.Models)
             {
                 if ((!isPreview) && uncheckedElem.Contains(model.Name))
@@ -479,7 +522,7 @@ namespace IDL4_EA_Extension
                 foreach (Package package in model.Packages)
                 {
                     GenIDL_ModuleFirstPass(repository, package, false,
-                        output, 0, model.Name, uncheckedElem, moduleRelevance, completedClasses);
+                        output, 0, model.Name, uncheckedElem, moduleRelevance, completionDB);
                 }
             }
 
@@ -492,6 +535,7 @@ namespace IDL4_EA_Extension
 
                 foreach (Package model in repository.Models)
                 {
+                    output.OutputTextLine("//DEBUG: GenIDL uncheckedElem? " + model.Name);
                     if ((!isPreview) && uncheckedElem.Contains(model.Name))
                     {
                         // if unckecked skip this model
@@ -501,11 +545,13 @@ namespace IDL4_EA_Extension
                     foreach (Package package in model.Packages)
                     {
                         int generatedItemCount;
+                        output.OutputTextLine("//DEBUG: GenIDL GenIDL_ModuleSecondPass? " + package.Name);
                         notGeneratedClassCount += GenIDL_ModuleSecondPass(repository, package, false,
                             output, 0, model.Name,
-                            out generatedItemCount, uncheckedElem, moduleRelevance, completedClasses);
+                            out generatedItemCount, uncheckedElem, moduleRelevance, completionDB);
                     }
                 }
+                output.OutputTextLine("//DEBUG: GenIDL {notGeneratedClassCount , previousNotGeneratedClassCount} = {" + notGeneratedClassCount + ", " + previousNotGeneratedClassCount + ")");
             }
             while ( (notGeneratedClassCount > 0) && (notGeneratedClassCount != previousNotGeneratedClassCount) ) ;
 
@@ -513,14 +559,14 @@ namespace IDL4_EA_Extension
             if (notGeneratedClassCount > 0 )
             {
                 output.OutputTextLine("/* WARNING: " + notGeneratedClassCount + " classes could not be generated due to circular dependencies */");
-                GenIDL_ReportUngeneratedClasses(repository, output, 0, uncheckedElem, moduleRelevance, completedClasses);
+                GenIDL_ReportUngeneratedClasses(repository, output, 0, uncheckedElem, moduleRelevance, completionDB);
             }
         }
 
 
         private static void GenIDL_ReportUngeneratedClasses(Repository repository,
             TextOutputInterface output, int depth,
-            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, CodegenCompleteDatabase completionDB)
         {
 
             output.OutputTextLine("/*");
@@ -536,7 +582,7 @@ namespace IDL4_EA_Extension
 
                 foreach (Package package in model.Packages)
                 {
-                    GenIDL_ReportUngeneratedClasses(repository, package, output, 0, model.Name, uncheckedElem, relevantModules, completedClasses);
+                    GenIDL_ReportUngeneratedClasses(repository, package, output, 0, model.Name, uncheckedElem, relevantModules, completionDB);
                 }
             }
             output.OutputTextLine("     -----------------------------------------------------------------------------------");
@@ -545,7 +591,7 @@ namespace IDL4_EA_Extension
 
         private static void GenIDL_ReportUngeneratedClasses(Repository repository, Package package,
             TextOutputInterface output, int depth, String pathToElem,
-            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, CodegenCompleteDatabase completionDB)
         {
             // if unchecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
@@ -564,17 +610,17 @@ namespace IDL4_EA_Extension
             {
                 if (!IsElementEnum(e))
                 {
-                    if ( ( completedClasses.Contains(e.ElementID) == false )
+                    if ( (completionDB.IsClassGenerated(e) == false )
                         && GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null) )
                     {
-                        GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses, true);
+                        GenIDL_DependenciesAlreadyGenerated(repository, e, output, completionDB, true);
                     }
                 }
             }
 
             foreach (Package p in package.Packages)
             {
-                GenIDL_ReportUngeneratedClasses(repository, p, output, depth + 1, packageFullName, uncheckedElem, relevantModules, completedClasses);
+                GenIDL_ReportUngeneratedClasses(repository, p, output, depth + 1, packageFullName, uncheckedElem, relevantModules, completionDB);
             }
         }
 
@@ -629,7 +675,7 @@ namespace IDL4_EA_Extension
         private static readonly string[] xsd_ulongTypes = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
         private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
         private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte" };
-        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary", "dateTime", "date" };
+        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
 
         private static readonly string[][] xsd_primtiveTypeVariations = {
                 xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
@@ -640,6 +686,11 @@ namespace IDL4_EA_Extension
         private static readonly string[][] xsd_builtinTypedefs = {
                 xsd_builtinOctet2TypesTypedef
         };
+
+        private static String IDL_NormalizeXSDbuiltinTypes(String  typeName)
+        {
+            return IDL_NormalizeMemberTypeNameClassiffiedID0(typeName);
+        }
 
         private static String IDL_XSDbuiltin2IDLdeclaration(String classifierName, String baseClassifierName)
         {
@@ -724,7 +775,7 @@ namespace IDL4_EA_Extension
          */
         private static void GenIDL_ModuleFirstPass(Repository repository, Package package, bool forceSelection,
             TextOutputInterface output, int depth, String pathToElem,
-            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, HashSet<long> completedClasses)
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, CodegenCompleteDatabase completionDB)
         {
             // if unckecked skip this model
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
@@ -765,8 +816,8 @@ namespace IDL4_EA_Extension
                 if (IsElementEnum(e))
                 {
                     GenIDL_Enum(repository, e, output, depth + 1, uncheckedElem, packageFullName);
-                    if ( completedClasses != null ) {
-                        completedClasses.Add(e.ElementID);
+                    if (completionDB != null ) {
+                        completionDB.AddGeneratedClass(e);
                     }
                     emptyModuleContent = false;
                 }
@@ -787,9 +838,9 @@ namespace IDL4_EA_Extension
                     }
 
                     GenIDL_XSDSimpleType(repository, e, null, output, depth + 1);
-                    if (completedClasses != null)
+                    if (completionDB != null)
                     {
-                        completedClasses.Add(e.ElementID);
+                        completionDB.AddGeneratedClass(e);
                     }
                     emptyModuleContent = false;
                 }  
@@ -806,9 +857,9 @@ namespace IDL4_EA_Extension
                     }
 
                     GenIDL_XSDTopLevelAttribute(repository, e, null, output, depth + 1);
-                    if (completedClasses != null)
+                    if (completionDB != null)
                     {
-                        completedClasses.Add(e.ElementID);
+                        completionDB.AddGeneratedClass(e);
                     }
                     emptyModuleContent = false;
                 }
@@ -820,7 +871,7 @@ namespace IDL4_EA_Extension
                 bool generatedElements = false;
                 if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null))
                 {
-                    generatedElements = GenIDLNestedSimpleElementTypedefs(repository, e, output, depth, completedClasses);
+                    generatedElements = GenIDL_NestedSimpleElementTypedefs(repository, e, output, depth, completionDB);
                 }
                 emptyModuleContent = false;
             }
@@ -829,7 +880,7 @@ namespace IDL4_EA_Extension
             foreach (Package p in package.Packages)
             {
                 GenIDL_ModuleFirstPass(repository, p, false,
-                    output, depth + 1, packageFullName, uncheckedElem, relevantModules, completedClasses);
+                    output, depth + 1, packageFullName, uncheckedElem, relevantModules, completionDB);
                 emptyModuleContent = false;
             }
 
@@ -865,24 +916,29 @@ namespace IDL4_EA_Extension
          */
         private static int GenIDL_ModuleSecondPass(Repository repository, Package package, bool forceSelection,
             TextOutputInterface output, int depth, String pathToElem, out int generatedItemCount,
-            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules,HashSet<long> completedClasses )
+            HashSet<String> uncheckedElem, Dictionary<long, bool> relevantModules, CodegenCompleteDatabase completionDB)
         {
             int notGeneratedClassCount = 0;
             generatedItemCount = 0;
 
+            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass (begin) " + package.Name + " notGeneratedClassCount = " + notGeneratedClassCount);
+
             // if unckecked skip this model
+            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass->IsElementUnchecked? " + package.Name);
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
             if ( (!forceSelection) && IsElementUnchecked(uncheckedElem, packageFullName) )
             {
                 return 0;
             }
 
+            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass->IsModuleRelevant? " + package.Name);
             if (!IsModuleRelevant(relevantModules, package, output))
             {
                 return 0;
             }
 
-            if (completedClasses.Contains(package.PackageID))
+            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass->completionDB? PackageID= " + package.PackageID + " name = " + package.Name);
+            if (completionDB.IsPackageComplete(package))
             {
                 return 0;
             }
@@ -894,13 +950,17 @@ namespace IDL4_EA_Extension
 
             foreach (Element e in package.Elements)
             {
-                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completedClasses))
+                output.OutputTextLine(depth, "//DEBUG GenIDL_MustGenerateClass? " + packageFullName + "::" + e.Name);
+                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completionDB))
                 {
-                    if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completedClasses, false) )
+                    output.OutputTextLine(depth, "//DEBUG GenIDL_DependenciesAlreadyGenerated? " + packageFullName + "::" + e.Name);
+                    if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completionDB, false) )
                     {
+                        output.OutputTextLine(depth, "//DEBUG GenIDL_Class? " + packageFullName + "::" + e.Name);
                         GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
                         ++generatedItemCount;
-                        completedClasses.Add(e.ElementID);
+                        output.OutputTextLine(depth, "//DEBUG GenIDL_Class completionDB ElementID =  " + e.ElementID + " Name = " + e.Name);
+                        completionDB.AddGeneratedClass(e);
                     }
                     else
                     {
@@ -908,20 +968,22 @@ namespace IDL4_EA_Extension
                     }
                 }
             }
+            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass (before packages) " + moduleName + " notGeneratedClassCount = " + notGeneratedClassCount );
 
             foreach (Package p in package.Packages)
             {
                 int subModuleGeneratedItemCount;
                 int submoduleNonGenClassCount = GenIDL_ModuleSecondPass(repository, p, false,
                     output, depth + 1, packageFullName,
-                    out subModuleGeneratedItemCount, uncheckedElem, relevantModules, completedClasses);
+                    out subModuleGeneratedItemCount, uncheckedElem, relevantModules, completionDB);
                 notGeneratedClassCount += submoduleNonGenClassCount;
                 generatedItemCount += subModuleGeneratedItemCount;
 
                 if (submoduleNonGenClassCount == 0)
                 {
                     // module is complete
-                    completedClasses.Add(p.PackageID);
+                    output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass completionDB PackageID =  " + p.PackageID + " Name = " + p.Name);
+                    completionDB.AddCompletedPackage(p);
                 }
             }
 
@@ -935,6 +997,8 @@ namespace IDL4_EA_Extension
                 output.OutputTextLine(depth, "}; /* module " + moduleName + " */");
                 output.OutputTextLine();
             }
+
+            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass (after packages) "+ moduleName + " notGeneratedClassCount = " + notGeneratedClassCount);
 
             return notGeneratedClassCount;
         }
@@ -980,7 +1044,7 @@ namespace IDL4_EA_Extension
                     GenIDL_Annotation("Value", valueAnnotation, true, output, depth);
                 }
 
-                output.OutputText(depth, enumName + "_" + child.Name);
+                output.OutputText(depth, enumName + "_" + IDL_NormalizeUserDefinedClassifierName(child.Name));
 
                 if ((idlVersion == IDLVersion.IDL_V350_CONNEXT52) && (valueAnnotation != null))
                 {
@@ -1057,9 +1121,9 @@ namespace IDL4_EA_Extension
         /* Generate a typedef for each nested XSDsimpleElement that is declared in-line within a type
          * This happens for example when we convert from an XSD that has elements defined inline as simple types
          */
-        private static bool GenIDLNestedSimpleElementTypedefs(Repository repository, Element classElem,
+        private static bool GenIDL_NestedSimpleElementTypedefs(Repository repository, Element classElem,
             TextOutputInterface output, int depth,
-            HashSet<long> completedClasses)
+            CodegenCompleteDatabase completionDB)
         {
             bool generatedElements = false;
 
@@ -1086,9 +1150,9 @@ namespace IDL4_EA_Extension
                 }
                 output.OutputTextLine(depth + 1, typeDeclaration);
 
-                if (completedClasses != null)
+                if (completionDB != null)
                 {
-                    completedClasses.Add(child.ElementID);
+                    completionDB.AddGeneratedClass(child);
                 }
 
                 generatedElements = true;
@@ -1134,16 +1198,31 @@ namespace IDL4_EA_Extension
                 }
                 else {
                     Element attributeTypeElem = repository.GetElementByID(child.ClassifierID);
+                    String packageName = GenIDL_GetFullPackageName(repository, attributeTypeElem);
+                    String attributeTypeName = null;
 
-                    // Need to identify the case where the attribute type is defined nested in the container class
-                    // in that case the type was generated as a typedef with the class name as prefix.
-                    String attributeTypeName = attributeTypeElem.Name;
                     if (attributeTypeElem.ParentID == classElem.ElementID)
                     {
-                        attributeTypeName = IDL_NormalizeMemberTypeName(classElem.Name) + "_" + attributeTypeName;
+                        // The attribute type is defined nested in the container class
+                        // in that case the type was generated as a typedef with the class name as prefix.
+                        attributeTypeName = IDL_NormalizeUserDefinedClassifierName(classElem.Name) 
+                            + "_" + IDL_NormalizeMemberTypeName(attributeTypeElem.Name);
                     }
-                    typeName = GenIDL_GetFullPackageName(repository, attributeTypeElem)
-                        + IDL_NormalizeMemberTypeName(attributeTypeName);
+                    else
+                    {
+                        // The attribute type is either an external class, or a builtin type
+                        if (packageName.Equals("")) {
+                            // In this case attribute type is builtin type. Normalize the builtin name
+                            attributeTypeName = IDL_NormalizeMemberTypeName(attributeTypeElem.Name);
+                        }
+                        else
+                        {
+                            // In this case attribute type is a user-defined type. Normalize the name
+                            // removing illegal characters
+                            attributeTypeName = IDL_NormalizeUserDefinedClassifierName(attributeTypeElem.Name);
+                        }
+                    }
+                    typeName = packageName + attributeTypeName;
                 }
 
                 int lower  = 0;
@@ -1654,7 +1733,7 @@ namespace IDL4_EA_Extension
             String cardinality = referencedElemEnd.Cardinality;
            
 
-            String normalizedMemberType = IDL_NormalizeMemberTypeName(referencedElem.Name);
+            String normalizedMemberType = IDL_NormalizeUserDefinedClassifierName(referencedElem.Name);
             memberTypeScoped = GenIDL_GetFullPackageName(repository, referencedElem) + normalizedMemberType;
 
             // Apply cardinality rules. Can cause member to be @Optional, or a sequence
@@ -1888,6 +1967,10 @@ namespace IDL4_EA_Extension
             {
                 baseClassName = GetIDL_getBaseClass(repository, elem);
             }
+            else
+            {
+                baseClassName = IDL_NormalizeXSDbuiltinTypes(baseClassName);
+            }
 
             return baseClassName;
         }
@@ -1910,7 +1993,7 @@ namespace IDL4_EA_Extension
             }
      
             String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
-            // output.OutputTextLine(depth, "// Debug GenIDL_XSDSimpleType cl:" + classifierName + " base:" + baseClassName);
+            output.OutputTextLine(depth, "// Debug GenIDL_XSDSimpleType cl:" + classifierName + " base:" + baseClassName);
             if (typeDeclaration != null)
             {
                 output.OutputTextLine(depth, typeDeclaration);
@@ -1970,7 +2053,7 @@ namespace IDL4_EA_Extension
         }
 
         private static bool GenIDL_MustGenerateClass(Repository repository, Element classElem,
-             String elementPath, HashSet<String> uncheckedElem, HashSet<long> completedClasses)
+             String elementPath, HashSet<String> uncheckedElem, CodegenCompleteDatabase completionDB)
         {
             // Check that it is a class
             if (!IsClass(classElem))
@@ -1979,7 +2062,7 @@ namespace IDL4_EA_Extension
             }
 
             // If already generated skip class
-            if ( (completedClasses != null) && completedClasses.Contains(classElem.ElementID) )
+            if ( (completionDB != null) && completionDB.IsClassGenerated(classElem) )
             {
                 return false;
             }
@@ -2024,7 +2107,7 @@ namespace IDL4_EA_Extension
          *
          */
         private static bool GenIDL_DependenciesAlreadyGenerated(Repository repository, Element classElem,
-            TextOutputInterface output, HashSet<long> completedClasses, bool outputReport)
+            TextOutputInterface output, CodegenCompleteDatabase completionDB, bool outputReport)
         {
 
             //output.OutputTextLine("// GenIDL_DependenciesAlreadyGenerated Checking: " + classElem.Name);
@@ -2034,7 +2117,7 @@ namespace IDL4_EA_Extension
             {
                 Object obj = classElem.BaseClasses.GetAt(0);
                 Element elem = (Element)obj;
-                if (!completedClasses.Contains(elem.ElementID))
+                if (!completionDB.IsClassGenerated(elem))
                 {
                     if (outputReport)
                     {
@@ -2053,7 +2136,7 @@ namespace IDL4_EA_Extension
                 {
                     continue;
                 }
-                if (!completedClasses.Contains(child.ClassifierID))
+                if (!completionDB.IsClassIdGenerated(child.ClassifierID))
                 {
                     // Not generated yet. It is only OK if this is by reference
                     if ( !IsAttributeReference(child) )
@@ -2096,7 +2179,7 @@ namespace IDL4_EA_Extension
 
                 // If we are here then the referenced element must appear as a member. There is a depedency so we must make sure
                 // that that class has already been generated
-                if (!completedClasses.Contains(referencedElemId))
+                if (!completionDB.IsClassIdGenerated(referencedElemId))
                 {
                     if (outputReport)
                     {
@@ -2244,18 +2327,32 @@ namespace IDL4_EA_Extension
         }
 
 
-        private static char[] invalidTypenameChars = new char[] { ' ', '-', '&', '(', ')' };
+        private static char[] invalidTypenameChars = new char[] { ' ', '-', '&', '(', ')', '/', '?'};
+        private static char[] recognizedUnicodeCharsInput = new char[] { '²', '³', '°', 'µ' };
+        private static char[] recognizedUnicodeCharOutput = new char[] { '2', '3', 'd', 'u' };
 
         /**  Normalizes a user-defined UML classifier (class / package) name into a legal IDL class/module name
          *
          */
         public static String IDL_NormalizeUserDefinedClassifierName(String classifierName)
         {
-            for (int index = 0; index < invalidTypenameChars.GetLength(0); ++index) {
-                classifierName = classifierName.Replace(invalidTypenameChars[index], '_');
+            String normalizedName = classifierName;
+
+            // DO special transformation for some recognized unicode characters
+            for (int index = 0; index < recognizedUnicodeCharsInput.GetLength(0); ++index)
+            {
+                normalizedName = normalizedName.Replace(recognizedUnicodeCharsInput[index], recognizedUnicodeCharOutput[index]);
             }
 
-            return classifierName;
+            // The rest of the unicode characters get replaced by "?" 
+            normalizedName = Encoding.ASCII.GetString(Encoding.ASCII.GetBytes(normalizedName));
+
+            // This replaces any ascci characters that are not valid in identifiers (including ?)
+            for (int index = 0; index < invalidTypenameChars.GetLength(0); ++index) {
+                normalizedName = normalizedName.Replace(invalidTypenameChars[index], '_');
+            }
+
+            return normalizedName;
         }
 
         private static readonly string[] boolTypes      = new string[] { "boolean", "bool" };
@@ -2323,7 +2420,7 @@ namespace IDL4_EA_Extension
 
             if (umlExtensionTypes.Contains(typeName) )
             {
-                return "UML_Extension::" + typeName;
+                return UML_EXTENSION_MODULE_NAME + "::" + typeName;
             }
 
             return IDL_NormalizeUserDefinedClassifierName(normalizedType);
