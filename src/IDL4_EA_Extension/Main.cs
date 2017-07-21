@@ -535,7 +535,6 @@ namespace IDL4_EA_Extension
 
                 foreach (Package model in repository.Models)
                 {
-                    output.OutputTextLine("//DEBUG: GenIDL uncheckedElem? " + model.Name);
                     if ((!isPreview) && uncheckedElem.Contains(model.Name))
                     {
                         // if unckecked skip this model
@@ -545,13 +544,11 @@ namespace IDL4_EA_Extension
                     foreach (Package package in model.Packages)
                     {
                         int generatedItemCount;
-                        output.OutputTextLine("//DEBUG: GenIDL GenIDL_ModuleSecondPass? " + package.Name);
                         notGeneratedClassCount += GenIDL_ModuleSecondPass(repository, package, false,
                             output, 0, model.Name,
                             out generatedItemCount, uncheckedElem, moduleRelevance, completionDB);
                     }
                 }
-                output.OutputTextLine("//DEBUG: GenIDL {notGeneratedClassCount , previousNotGeneratedClassCount} = {" + notGeneratedClassCount + ", " + previousNotGeneratedClassCount + ")");
             }
             while ( (notGeneratedClassCount > 0) && (notGeneratedClassCount != previousNotGeneratedClassCount) ) ;
 
@@ -816,9 +813,9 @@ namespace IDL4_EA_Extension
                 if (IsElementEnum(e))
                 {
                     GenIDL_Enum(repository, e, output, depth + 1, uncheckedElem, packageFullName);
-                    if (completionDB != null ) {
+                    //if (completionDB != null ) {
                         completionDB.AddGeneratedClass(e);
-                    }
+                    //}
                     emptyModuleContent = false;
                 }
                 else if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null))
@@ -838,10 +835,9 @@ namespace IDL4_EA_Extension
                     }
 
                     GenIDL_XSDSimpleType(repository, e, null, output, depth + 1);
-                    if (completionDB != null)
-                    {
+                    //if (completionDB != null) {
                         completionDB.AddGeneratedClass(e);
-                    }
+                    //}
                     emptyModuleContent = false;
                 }  
             }
@@ -857,10 +853,9 @@ namespace IDL4_EA_Extension
                     }
 
                     GenIDL_XSDTopLevelAttribute(repository, e, null, output, depth + 1);
-                    if (completionDB != null)
-                    {
+                    // if (completionDB != null) {
                         completionDB.AddGeneratedClass(e);
-                    }
+                    //}
                     emptyModuleContent = false;
                 }
             }
@@ -921,23 +916,18 @@ namespace IDL4_EA_Extension
             int notGeneratedClassCount = 0;
             generatedItemCount = 0;
 
-            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass (begin) " + package.Name + " notGeneratedClassCount = " + notGeneratedClassCount);
-
             // if unckecked skip this model
-            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass->IsElementUnchecked? " + package.Name);
             String packageFullName = IDL_FullElementName(pathToElem, package.Name);
             if ( (!forceSelection) && IsElementUnchecked(uncheckedElem, packageFullName) )
             {
                 return 0;
             }
 
-            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass->IsModuleRelevant? " + package.Name);
             if (!IsModuleRelevant(relevantModules, package, output))
             {
                 return 0;
             }
 
-            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass->completionDB? PackageID= " + package.PackageID + " name = " + package.Name);
             if (completionDB.IsPackageComplete(package))
             {
                 return 0;
@@ -950,16 +940,12 @@ namespace IDL4_EA_Extension
 
             foreach (Element e in package.Elements)
             {
-                output.OutputTextLine(depth, "//DEBUG GenIDL_MustGenerateClass? " + packageFullName + "::" + e.Name);
                 if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completionDB))
                 {
-                    output.OutputTextLine(depth, "//DEBUG GenIDL_DependenciesAlreadyGenerated? " + packageFullName + "::" + e.Name);
                     if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completionDB, false) )
                     {
-                        output.OutputTextLine(depth, "//DEBUG GenIDL_Class? " + packageFullName + "::" + e.Name);
                         GenIDL_Class(repository, e, output, depth + 1, uncheckedElem, packageFullName);
                         ++generatedItemCount;
-                        output.OutputTextLine(depth, "//DEBUG GenIDL_Class completionDB ElementID =  " + e.ElementID + " Name = " + e.Name);
                         completionDB.AddGeneratedClass(e);
                     }
                     else
@@ -968,7 +954,6 @@ namespace IDL4_EA_Extension
                     }
                 }
             }
-            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass (before packages) " + moduleName + " notGeneratedClassCount = " + notGeneratedClassCount );
 
             foreach (Package p in package.Packages)
             {
@@ -982,7 +967,6 @@ namespace IDL4_EA_Extension
                 if (submoduleNonGenClassCount == 0)
                 {
                     // module is complete
-                    output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass completionDB PackageID =  " + p.PackageID + " Name = " + p.Name);
                     completionDB.AddCompletedPackage(p);
                 }
             }
@@ -997,8 +981,6 @@ namespace IDL4_EA_Extension
                 output.OutputTextLine(depth, "}; /* module " + moduleName + " */");
                 output.OutputTextLine();
             }
-
-            output.OutputTextLine(depth, "//DEBUG GenIDL_ModuleSecondPass (after packages) "+ moduleName + " notGeneratedClassCount = " + notGeneratedClassCount);
 
             return notGeneratedClassCount;
         }
@@ -1039,7 +1021,7 @@ namespace IDL4_EA_Extension
                     }
                 }
 
-                if ( (idlVersion >= IDLVersion.IDL_V400) && (valueAnnotation != null) )
+                if ( (idlVersion >= IDLVersion.IDL_V410_CONNEXT53) && (valueAnnotation != null) )
                 {
                     GenIDL_Annotation("Value", valueAnnotation, true, output, depth);
                 }
@@ -1150,10 +1132,9 @@ namespace IDL4_EA_Extension
                 }
                 output.OutputTextLine(depth + 1, typeDeclaration);
 
-                if (completionDB != null)
-                {
+                // if (completionDB != null) {
                     completionDB.AddGeneratedClass(child);
-                }
+                // }
 
                 generatedElements = true;
             }
@@ -1299,7 +1280,7 @@ namespace IDL4_EA_Extension
             TextOutputInterface output, int depth)
         {
             int annotationCount = 0;
-            if (idlVersion >= IDLVersion.IDL_V400)
+            if (idlVersion >= IDLVersion.IDL_V410_CONNEXT53)
             {
                 annotationCount = GenIDL_AttributeAnnotations(child, output, depth);
                 if (extraAnnotation != null)
@@ -1310,7 +1291,7 @@ namespace IDL4_EA_Extension
             }
             output.OutputText(depth, effectiveType + " " + effectiveName + ";");
 
-            if (idlVersion < IDLVersion.IDL_V400)
+            if (idlVersion < IDLVersion.IDL_V410_CONNEXT53)
             {
                 annotationCount = GenIDL_AttributeAnnotations(child, output, depth);
                 if (extraAnnotation != null)
@@ -1380,7 +1361,7 @@ namespace IDL4_EA_Extension
             String mappedAnnotationParam1;
             GenIDL_MapAnnotation(annotationName, annotationParam1, out mappedAnnotationName, out mappedAnnotationParam1);
 
-            if (idlVersion >= IDLVersion.IDL_V400)
+            if (idlVersion >= IDLVersion.IDL_V410_CONNEXT53)
             {
                 output.OutputText(depth, "@" + mappedAnnotationName.ToLower());
                 if ( (mappedAnnotationParam1 != null) && !mappedAnnotationParam1.Equals("") ) 
@@ -1847,12 +1828,12 @@ namespace IDL4_EA_Extension
                 {
                     if (annotations != null)
                     {
-                        if (idlVersion >= IDLVersion.IDL_V400)
+                        if (idlVersion >= IDLVersion.IDL_V410_CONNEXT53)
                         {
-                            output.OutputText(depth, annotations[0] + " ");
+                            output.OutputText(depth, annotations[0].ToLower() + " ");
                             for (int i = 1; i < annotations.Count; ++i)
                             {
-                                output.OutputText(annotations[i] + " ");
+                                output.OutputText(annotations[i].ToLower() + " ");
                             }
                             output.OutputTextLine(referencedType + "  " + refname + "; ");
                         }
@@ -1993,7 +1974,6 @@ namespace IDL4_EA_Extension
             }
      
             String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
-            output.OutputTextLine(depth, "// Debug GenIDL_XSDSimpleType cl:" + classifierName + " base:" + baseClassName);
             if (typeDeclaration != null)
             {
                 output.OutputTextLine(depth, typeDeclaration);
@@ -2040,7 +2020,6 @@ namespace IDL4_EA_Extension
 
 
             String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
-            // output.OutputTextLine(depth, "// Debug GenIDL_XSDTopLevelAttribute cl:" + classifierName + " base:" + baseClassName);
             if (typeDeclaration != null)
             {
                 output.OutputTextLine(depth, typeDeclaration);
@@ -2052,8 +2031,21 @@ namespace IDL4_EA_Extension
             }
         }
 
+        /*
+         * Checks whether the class needs to be generated taking into consideration all 
+         * the criteria below.
+         * 
+         * To anskwer yes all tjhe OK crteria have to be true and none of the NOT OK
+         * crireria can be true.
+         * 
+         * - Is is an enum or some other type mapped to a typedef? NOT OK
+         * - Optionally (if completionDB!=null), has it already been generated? NOT OK
+         * - Is the element a class?  OK
+         * - Is it checked in the selection tree? OK
+         */
         private static bool GenIDL_MustGenerateClass(Repository repository, Element classElem,
-             String elementPath, HashSet<String> uncheckedElem, CodegenCompleteDatabase completionDB)
+             String elementPath, HashSet<String> uncheckedElem, 
+             CodegenCompleteDatabase completionDB)
         {
             // Check that it is a class
             if (!IsClass(classElem))
@@ -2062,9 +2054,9 @@ namespace IDL4_EA_Extension
             }
 
             // If already generated skip class
-            if ( (completionDB != null) && completionDB.IsClassGenerated(classElem) )
+            if ( ( completionDB != null) && completionDB.IsClassGenerated(classElem) )
             {
-                return false;
+                    return false;
             }
 
             // If unchecked, skip class
@@ -2236,7 +2228,7 @@ namespace IDL4_EA_Extension
             String baseClassName = GetIDL_getBaseClass(repository, classElem);
 
             // In IDL4 and higher annotations are before the class
-            if  (idlVersion >= IDLVersion.IDL_V400) {
+            if  (idlVersion >= IDLVersion.IDL_V410_CONNEXT53) {
                 GenIDL_ClassAnnotation(classElem, output, depth);
             }
             output.OutputText(depth, "struct " + className);
@@ -2269,7 +2261,7 @@ namespace IDL4_EA_Extension
             output.OutputText(depth, "};");
 
             // In IDL35 annotations may appear after the class as a comment
-            if (idlVersion < IDLVersion.IDL_V400)
+            if (idlVersion < IDLVersion.IDL_V410_CONNEXT53)
             {
                 GenIDL_ClassAnnotation(classElem, output, depth);
             }

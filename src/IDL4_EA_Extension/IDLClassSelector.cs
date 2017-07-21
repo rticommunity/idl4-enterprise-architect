@@ -104,8 +104,8 @@ namespace IDL4_EA_Extension
     public class IDLVersion
     {
         public const int IDL_V350_CONNEXT52 = 349;
-        public const int IDL_V350_XTYPES = 350;
-        public const int IDL_V400 = 400;
+        public const int IDL_V350_XTYPES    = 350;
+        public const int IDL_V410_CONNEXT53 = 410;
 
         public string Name { get; set; }
         public int Value { get; set; }
@@ -128,7 +128,7 @@ namespace IDL4_EA_Extension
         List<IDLMappingDetail> _mappingDetails;
 
         public static IDLVersion defaultVersion =
-            new IDLVersion { Name = "IDL v3.5 (RTI Connext 5.2)", Value = IDLVersion.IDL_V350_CONNEXT52 };
+            new IDLVersion { Name = "IDL v4.1 (RTI Connext 5.3)", Value = IDLVersion.IDL_V410_CONNEXT53 };
 
         public static IDLMappingDetail defaultMappingDetails =
             new IDLMappingDetail { Name = "IDL Mapping Details - Suppressed", Value = IDLMappingDetail.IDL_DETAILS_NONE };
@@ -147,9 +147,9 @@ namespace IDL4_EA_Extension
         public IDLVersions()
         {
             _versions = new List<IDLVersion>();
+            _versions.Add(new IDLVersion { Name = "IDL v4.1  +  RTI Connext DDS 5.3", Value = IDLVersion.IDL_V410_CONNEXT53 });
             _versions.Add(new IDLVersion { Name = "IDL v3.5  +  RTI Connext DDS 5.2", Value = IDLVersion.IDL_V350_CONNEXT52 });
             _versions.Add(new IDLVersion { Name = "IDL v3.5  +  DDS-XTYPES 1.0", Value = IDLVersion.IDL_V350_XTYPES });
-            _versions.Add(new IDLVersion { Name = "IDL v4.0", Value = IDLVersion.IDL_V400 });
 
             _mappingDetails = new List<IDLMappingDetail>();
             _mappingDetails.Add(new IDLMappingDetail { Name = "IDL Mapping Details - Suppressed", Value = IDLMappingDetail.IDL_DETAILS_NONE });
