@@ -142,45 +142,91 @@ namespace IDL4_EA_Extension
      */
     class CodegenCompleteDatabase
     {
-        public CodegenCompleteDatabase()
+        public CodegenCompleteDatabase(bool previewMode)
         {
-            completedClasses = new HashSet<long>();
-            completedPackages = new HashSet<long>();
+            _previewMode = previewMode;
+            if (_previewMode)
+            {
+                _completedClasses = null;
+                _completedPackages = null;
+            }
+            else
+            {
+                _completedClasses = new HashSet<long>();
+                _completedPackages = new HashSet<long>();
+            }
+        }    
+ 
+        public CodegenCompleteDatabase() : this(true) { 
         }
 
         public void AddCompletedPackage(EA.Package package)
         {
-            completedPackages.Add(package.PackageID);
+            if (!_previewMode)
+            { 
+                _completedPackages.Add(package.PackageID);
+            }
         }
         public void AddGeneratedClass(EA.Element element)
         {
-            completedClasses.Add(element.ElementID);
+            if (!_previewMode)
+            {
+                _completedClasses.Add(element.ElementID);
+            }
         }
 
+        /*
+         * Checks if the package has been completely generated.
+         * In Preview Mode the return is always FALSE so that the
+         * preview resurses into nested packages
+         */
         public bool IsPackageComplete(EA.Package package)
         {
-            return completedPackages.Contains(package.PackageID);
+            if ( _previewMode )
+            {
+                return false;
+            }
+            return _completedPackages.Contains(package.PackageID);
         }
 
+        /*
+         * Checks if the class has been completely generated.
+         * In Preview Mode the return is always FALSE so that 
+         * it generates the class
+         */
         public bool IsClassGenerated(EA.Element element)
         {
-            return completedClasses.Contains(element.ElementID);
+            if ( _previewMode )
+            {
+                return false;
+            }
+            return _completedClasses.Contains(element.ElementID);
         }
 
+        /*
+         * Checks if the class that corresponds to an ID has been completely generated.
+         * In Preview Mode the return is always TRUE because this is used to check 
+         * dependencies on other classes and we need this to allow generation of the class
+         */
         public bool IsClassIdGenerated(int referencedElemId)
         {
-            return completedClasses.Contains(referencedElemId);
+            if  (_previewMode )
+            {
+                return true;
+            }
+            return _completedClasses.Contains(referencedElemId);
         }
-        private HashSet<long> completedClasses;
-        private HashSet<long> completedPackages;
+
+        private bool          _previewMode;
+        private HashSet<long> _completedClasses;
+        private HashSet<long> _completedPackages;
     };
 
 
     [ComVisible(true)]
     public class Main
     {
-
-        private const String IDL_GENERATOR_REVISION = "1.20";
+        private const String IDL_GENERATOR_REVISION = "1.21";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -432,11 +478,13 @@ namespace IDL4_EA_Extension
                 // display package
                 // output.OutputTextLine("Displaying Package: " + package.Name);
                 Dictionary<long, bool> moduleRelevance = new Dictionary<long, bool>();
-                CodegenCompleteDatabase dummyCompletedDB = new CodegenCompleteDatabase();
+                CodegenCompleteDatabase dummyCompletedDB = new CodegenCompleteDatabase(true);
                 UpdateModuleRelevance(moduleRelevance, package, output);
+
                 Main.GenIDL_ModuleFirstPass(repository, package, true,
-                    output, elementNames.Length - 1, pathToElement, uncheckedElem, moduleRelevance, null);
+                    output, elementNames.Length - 1, pathToElement, uncheckedElem, moduleRelevance, dummyCompletedDB);
                 int generatedItemCount;
+
                 Main.GenIDL_ModuleSecondPass(repository, package, true,
                     output, elementNames.Length - 1, pathToElement,
                     out generatedItemCount, uncheckedElem, moduleRelevance, dummyCompletedDB);
@@ -498,7 +546,7 @@ namespace IDL4_EA_Extension
             // completionDB holds the classes and packages for which code
             // generation has been completed
 
-            CodegenCompleteDatabase completionDB = new CodegenCompleteDatabase();
+            CodegenCompleteDatabase completionDB = new CodegenCompleteDatabase(false);
             foreach (Package model in repository.Models)
             {
                 if ((!isPreview) && uncheckedElem.Contains(model.Name))
@@ -608,7 +656,7 @@ namespace IDL4_EA_Extension
                 if (!IsElementEnum(e))
                 {
                     if ( (completionDB.IsClassGenerated(e) == false )
-                        && GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null) )
+                        && GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null,  output, depth) )
                     {
                         GenIDL_DependenciesAlreadyGenerated(repository, e, output, completionDB, true);
                     }
@@ -818,7 +866,7 @@ namespace IDL4_EA_Extension
                     //}
                     emptyModuleContent = false;
                 }
-                else if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null))
+                else if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completionDB, output, depth))
                 {
                         GenIDL_ClassTypedef(repository, e, output, depth + 1);
                         emptyModuleContent = false;
@@ -835,9 +883,7 @@ namespace IDL4_EA_Extension
                     }
 
                     GenIDL_XSDSimpleType(repository, e, null, output, depth + 1);
-                    //if (completionDB != null) {
-                        completionDB.AddGeneratedClass(e);
-                    //}
+                    completionDB.AddGeneratedClass(e);
                     emptyModuleContent = false;
                 }  
             }
@@ -853,9 +899,7 @@ namespace IDL4_EA_Extension
                     }
 
                     GenIDL_XSDTopLevelAttribute(repository, e, null, output, depth + 1);
-                    // if (completionDB != null) {
-                        completionDB.AddGeneratedClass(e);
-                    //}
+                    completionDB.AddGeneratedClass(e);
                     emptyModuleContent = false;
                 }
             }
@@ -864,7 +908,7 @@ namespace IDL4_EA_Extension
             foreach (Element e in package.Elements)
             {
                 bool generatedElements = false;
-                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null))
+                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, null, output, depth))
                 {
                     generatedElements = GenIDL_NestedSimpleElementTypedefs(repository, e, output, depth, completionDB);
                 }
@@ -940,7 +984,7 @@ namespace IDL4_EA_Extension
 
             foreach (Element e in package.Elements)
             {
-                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completionDB))
+                if (GenIDL_MustGenerateClass(repository, e, packageFullName, uncheckedElem, completionDB, output, depth))
                 {
                     if ( GenIDL_DependenciesAlreadyGenerated(repository, e, output, completionDB, false) )
                     {
@@ -1480,19 +1524,30 @@ namespace IDL4_EA_Extension
          * Names are always normalized to prevent using characters that would be invalid as a member name
          * When the classname is used a "numeric suffix" is used to prevent multiple references to the same
          * class resulting on member name collisions
+         * 
          */
         private static String GenIDL_GetReferenceName(EA.Connector conn, EA.ConnectorEnd referencedElemEnd, EA.Element referencedElem)
         {
+            // Note that in some cases referencedElem.Name is null. E.g. when the referenced element is a Note
+            if ((referencedElem == null) || (referencedElem.Name == null) || referencedElem.Name.Equals(""))
+            {
+                return "unamedReferencedElement";
+            }
+
             String refName = referencedElemEnd.Role;
-            if ( refName.Equals("") )  {
+            if (refName.Equals(""))
+            {
                 refName = conn.Name;
             }
-            if (refName.Equals(""))    {
+            if (refName.Equals(""))
+            {
                 char firstLetter = referencedElem.Name[0];
-                if ( char.IsUpper(firstLetter) )  {
+                if (char.IsUpper(firstLetter))
+                {
                     refName = char.ToLower(firstLetter) + referencedElem.Name.Substring(1);
                 }
-                else {
+                else
+                {
                     refName = "m_" + referencedElem.Name;
                 }
             }
@@ -1550,7 +1605,8 @@ namespace IDL4_EA_Extension
             out EA.ConnectorEnd sourceElemEnd, out EA.ConnectorEnd referencedElemEnd, 
             out int referencedElemId, out EA.Element referencedElem,
             out String memberName, out bool includeAsReference,
-            out bool includeInSourceElem, out String explanation)
+            out bool includeInSourceElem, out String explanation,
+            TextOutputInterface output, int depth)
         {
             includeInSourceElem = false;
             explanation = null;
@@ -1691,7 +1747,8 @@ namespace IDL4_EA_Extension
             GenIDL_ReferenceDescriptor(repository, conn, sourceClass.ElementID, reportExplanationText,
                 out thisElemEnd, out referencedElemEnd, out referencedElemId, out referencedElem, 
                 out memberName, out includeAsReference,
-                out includeReferencedTypeAsMember, out explanation);
+                out includeReferencedTypeAsMember, out explanation,
+                output, depth);
 
             if ( !includeReferencedTypeAsMember ) {
                 if ( reportExplanationText ) {
@@ -2045,7 +2102,8 @@ namespace IDL4_EA_Extension
          */
         private static bool GenIDL_MustGenerateClass(Repository repository, Element classElem,
              String elementPath, HashSet<String> uncheckedElem, 
-             CodegenCompleteDatabase completionDB)
+             CodegenCompleteDatabase completionDB,
+             TextOutputInterface output, int depth)
         {
             // Check that it is a class
             if (!IsClass(classElem))
@@ -2054,9 +2112,9 @@ namespace IDL4_EA_Extension
             }
 
             // If already generated skip class
-            if ( ( completionDB != null) && completionDB.IsClassGenerated(classElem) )
+            if ((completionDB != null) && completionDB.IsClassGenerated(classElem) )
             {
-                    return false;
+                 return false;
             }
 
             // If unchecked, skip class
@@ -2101,15 +2159,12 @@ namespace IDL4_EA_Extension
         private static bool GenIDL_DependenciesAlreadyGenerated(Repository repository, Element classElem,
             TextOutputInterface output, CodegenCompleteDatabase completionDB, bool outputReport)
         {
-
-            //output.OutputTextLine("// GenIDL_DependenciesAlreadyGenerated Checking: " + classElem.Name);
-
             // Check base classes
             if (classElem.BaseClasses.Count > 0)
             {
                 Object obj = classElem.BaseClasses.GetAt(0);
                 Element elem = (Element)obj;
-                if (!completionDB.IsClassGenerated(elem))
+                if (!completionDB.IsClassIdGenerated(elem.ElementID))
                 {
                     if (outputReport)
                     {
@@ -2162,7 +2217,8 @@ namespace IDL4_EA_Extension
                 GenIDL_ReferenceDescriptor(repository, conn, classElem.ElementID, false,
                                             out thisElemEnd, out referencedElemEnd, out referencedElemId, out referencedElem,
                                             out memberName, out includeAsReference,
-                                            out includeReferencedTypeAsMember, out explanation);
+                                            out includeReferencedTypeAsMember, out explanation,
+                                            output, 0);
 
                 // If the reference did not have to be included, there there is no dependency on it.
                 if ( includeReferencedTypeAsMember == false ) {
