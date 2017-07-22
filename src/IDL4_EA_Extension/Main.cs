@@ -497,10 +497,18 @@ namespace IDL4_EA_Extension
                 {
                     Main.GenIDL_Enum(repository, classElem, output, elementNames.Length - 1, uncheckedElem, pathToElement);
                 }
-                else
+                else if (IsXSDSimpleType(classElem))
+                {
+                    Main.GenIDL_XSDSimpleType(repository, classElem, null, output, elementNames.Length - 1);
+                }
+                else if (IsXSDTopLevelAttribute(classElem))
+                {
+                    Main.GenIDL_XSDTopLevelAttribute(repository, classElem, null, output, elementNames.Length - 1);
+                }
+                else 
                 {
                     Main.GenIDL_Class(repository, classElem, output, elementNames.Length - 1, uncheckedElem, pathToElement);
-                 }
+                }
             }
             for (int i = 1; i < elementNames.Length - 1; ++i)
             {
