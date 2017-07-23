@@ -517,6 +517,7 @@ namespace IDL4_EA_Extension
         }
 
         private static String UML_EXTENSION_MODULE_NAME = "UML_Extension";
+        private static String UNRESOLVED_TYPE_NAME = "ErrorUnresolvedType";
 
         /** Outputs UML "primitive" types that are not primitive in IDL
          * 
@@ -527,6 +528,7 @@ namespace IDL4_EA_Extension
             String builtinTypes = 
                 "module " + UML_EXTENSION_MODULE_NAME + " { " + Environment.NewLine +
                 "    // Place the type declarations below" + Environment.NewLine +
+                "    typedef string    " + UNRESOLVED_TYPE_NAME + "; " + Environment.NewLine +
                 "    typedef long long dateTime;" + Environment.NewLine +
                 "};";
 
@@ -2029,7 +2031,7 @@ namespace IDL4_EA_Extension
 
             if (baseClassName == null)
             {
-                baseClassName = "/* Error Empty Base Class for XSDsimpleType */";
+                baseClassName = UML_EXTENSION_MODULE_NAME + "::" + UNRESOLVED_TYPE_NAME;
             }
 
             String classifierName = IDL_NormalizeUserDefinedClassifierName(elem.Name);

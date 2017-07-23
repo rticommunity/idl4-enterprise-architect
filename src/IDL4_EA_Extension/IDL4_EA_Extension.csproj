@@ -61,6 +61,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Customization.cs" />
     <Compile Include="IDLClassSelector.cs">
       <SubType>Form</SubType>
     </Compile>
