@@ -109,6 +109,12 @@ namespace IDL4_EA_Extension
         {
             _currentOutput.OutputTextLine(text);
         }
+
+        public void OnUnresolvedTypeOption(bool checkedBox)
+        {
+            Main.setIdlInsertPlaceholderForUndefType(checkedBox);
+        }
+
     }
 
     /* This is a helper class to resolve a connector from the perspective of one of the
@@ -230,9 +236,9 @@ namespace IDL4_EA_Extension
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
-        private static int idlVersion = IDLVersions.defaultVersion.Value;
-        private static int idlMappingDetail = IDLVersions.defaultMappingDetails.Value;
-
+        private static int  idlVersion = IDLVersions.defaultVersion.Value;
+        private static int  idlMappingDetail = IDLVersions.defaultMappingDetails.Value;
+        private static bool idlInsertPlaceholderForUnderType = IDLVersions.defaultInsertPlaceholderForUnderTypeValue;
 
 
         // Called Before EA starts to check Add-In Exists
@@ -2031,7 +2037,14 @@ namespace IDL4_EA_Extension
 
             if (baseClassName == null)
             {
-                baseClassName = UML_EXTENSION_MODULE_NAME + "::" + UNRESOLVED_TYPE_NAME;
+                if (Main.idlInsertPlaceholderForUnderType)
+                { 
+                    baseClassName = UML_EXTENSION_MODULE_NAME + "::" + UNRESOLVED_TYPE_NAME;
+                }
+                else
+                {
+                    baseClassName = "/* Error Unresolved Type */";
+                }
             }
 
             String classifierName = IDL_NormalizeUserDefinedClassifierName(elem.Name);
@@ -2570,5 +2583,9 @@ namespace IDL4_EA_Extension
             Main.idlMappingDetail = p;
         }
 
+        internal static void setIdlInsertPlaceholderForUndefType(bool b)
+        {
+            Main.idlInsertPlaceholderForUnderType = b;
+        }
     }
 }

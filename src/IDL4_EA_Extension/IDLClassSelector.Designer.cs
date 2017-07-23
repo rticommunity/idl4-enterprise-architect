@@ -34,6 +34,7 @@
             this.buttonGenerate = new System.Windows.Forms.Button();
             this.buttonSave = new System.Windows.Forms.Button();
             this.idlGenConfiguration = new System.Windows.Forms.GroupBox();
+            this.unresolvedTypeCheckbox = new System.Windows.Forms.CheckBox();
             this.idlMappingDetailComboBox = new System.Windows.Forms.ComboBox();
             this.idlVersionComboBox = new System.Windows.Forms.ComboBox();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
@@ -117,14 +118,28 @@
             // idlGenConfiguration
             // 
             this.tableLayoutPanel1.SetColumnSpan(this.idlGenConfiguration, 2);
+            this.idlGenConfiguration.Controls.Add(this.unresolvedTypeCheckbox);
             this.idlGenConfiguration.Controls.Add(this.idlMappingDetailComboBox);
             this.idlGenConfiguration.Controls.Add(this.idlVersionComboBox);
             this.idlGenConfiguration.Location = new System.Drawing.Point(3, 434);
             this.idlGenConfiguration.Name = "idlGenConfiguration";
-            this.idlGenConfiguration.Size = new System.Drawing.Size(607, 41);
+            this.idlGenConfiguration.Size = new System.Drawing.Size(624, 41);
             this.idlGenConfiguration.TabIndex = 3;
             this.idlGenConfiguration.TabStop = false;
             this.idlGenConfiguration.Text = "Configuration";
+            // 
+            // unresolvedTypeCheckbox
+            // 
+            this.unresolvedTypeCheckbox.AutoSize = true;
+            this.unresolvedTypeCheckbox.Checked = true;
+            this.unresolvedTypeCheckbox.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.unresolvedTypeCheckbox.Location = new System.Drawing.Point(443, 17);
+            this.unresolvedTypeCheckbox.Name = "unresolvedTypeCheckbox";
+            this.unresolvedTypeCheckbox.Size = new System.Drawing.Size(170, 17);
+            this.unresolvedTypeCheckbox.TabIndex = 2;
+            this.unresolvedTypeCheckbox.Text = "Insert Undef Type Placeholder";
+            this.unresolvedTypeCheckbox.UseVisualStyleBackColor = true;
+            this.unresolvedTypeCheckbox.CheckedChanged += new System.EventHandler(this.unresolvedTypeCheckbox_CheckedChanged);
             // 
             // idlMappingDetailComboBox
             // 
@@ -156,6 +171,7 @@
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
             this.idlGenConfiguration.ResumeLayout(false);
+            this.idlGenConfiguration.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -172,5 +188,6 @@
         private System.Windows.Forms.GroupBox idlGenConfiguration;
         private System.Windows.Forms.ComboBox idlVersionComboBox;
         private System.Windows.Forms.ComboBox idlMappingDetailComboBox;
+        private System.Windows.Forms.CheckBox unresolvedTypeCheckbox;
     }
 }

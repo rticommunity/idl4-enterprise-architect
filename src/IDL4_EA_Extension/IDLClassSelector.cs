@@ -99,8 +99,14 @@ namespace IDL4_EA_Extension
             TreeNode sel = treeViewModelElements.SelectedNode;
             if (sel != null) _actionInterface.OnSelectAction(sel);
         }
+
+        private void unresolvedTypeCheckbox_CheckedChanged(object sender, EventArgs e)
+        {
+            CheckBox cb = (CheckBox)sender;
+            _actionInterface.OnUnresolvedTypeOption(cb.Checked);
+        }
     }
-    
+
     public class IDLVersion
     {
         public const int IDL_V350_CONNEXT52 = 349;
@@ -132,7 +138,9 @@ namespace IDL4_EA_Extension
 
         public static IDLMappingDetail defaultMappingDetails =
             new IDLMappingDetail { Name = "IDL Mapping Details - Suppressed", Value = IDLMappingDetail.IDL_DETAILS_NONE };
-       
+
+        public static bool defaultInsertPlaceholderForUnderTypeValue = true;
+
         public List<IDLVersion> getVersionList()
         {
             return _versions;
@@ -142,7 +150,6 @@ namespace IDL4_EA_Extension
         {
             return _mappingDetails;
         }
-
 
         public IDLVersions()
         {
