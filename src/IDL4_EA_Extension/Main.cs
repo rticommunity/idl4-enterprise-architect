@@ -49,6 +49,7 @@ namespace IDL4_EA_Extension
             _currentOutput = output;
             _uncheckedElements = uncheckedElements;
             _classSelector = classSelector;
+
             this.OnIdlVersionAction(IDLVersions.defaultVersion);
             this.OnIdlMappingDetailAction(IDLVersions.defaultMappingDetails);
         }
@@ -240,6 +241,8 @@ namespace IDL4_EA_Extension
         private static int  idlMappingDetail = IDLVersions.defaultMappingDetails.Value;
         private static bool idlInsertPlaceholderForUnderType = IDLVersions.defaultInsertPlaceholderForUnderTypeValue;
 
+        private static Customization idlCustomization = null;
+
 
         // Called Before EA starts to check Add-In Exists
         public string EA_Connect(Repository repository)
@@ -311,9 +314,13 @@ namespace IDL4_EA_Extension
                     IDLClassSelector idlClassSelector = new IDLClassSelector(idlGenAction);
                     TextBoxOutputAdapter output = new TextBoxOutputAdapter(idlClassSelector.getTextBox());
                     HashSet<string> uncheckedElements = new HashSet<string>();
+
+                    idlCustomization = new Customization();
+                    idlCustomization.ParseConfigFile();
+
                     idlGenAction.Initialize(repository, output, idlClassSelector, uncheckedElements);
 
-                   // GenerateIDL(repository, output);
+                    // GenerateIDL(repository, output);
 
                     PopulateRepositoryClassSelector(idlClassSelector, repository);
                     idlClassSelector.Text = "IDL4 (RTI Connext DDS) - Select classes for IDL generation - Plugin revision " + IDL_GENERATOR_REVISION;
@@ -543,14 +550,25 @@ namespace IDL4_EA_Extension
             output.OutputTextLine("/* ******************************************************************* */");
             output.OutputTextLine("/* These are UML builtin primitive types that are not primitive in IDL */");
             output.OutputTextLine(builtinTypes);
+            output.OutputTextLine("");
         }
 
         internal static void GenIDL(Repository repository, bool isPreview, TextOutputInterface output, HashSet<String> uncheckedElem)
         {
             output.Clear();
 
-            GenIDL_PrebuiltUMLTypes(output);
+            output.OutputTextLine("/* ******************************************************************* */");
+            if ( idlCustomization.getParseResult() == null )
+            {
+                output.OutputTextLine("/* Note: Using configurarion file \"" + idlCustomization.getConfigFilePath() + "\"  */");
+            }
+            else
+            {
+                output.OutputTextLine("/* Note: No configuration used. Reason: " + idlCustomization.getParseResult() + " */");
+            }
             output.OutputTextLine("");
+
+            GenIDL_PrebuiltUMLTypes(output);
 
             output.OutputTextLine("/* ******************************************************************* */");
             output.OutputTextLine("/* These are Types defined in the model */");
