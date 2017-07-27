@@ -233,7 +233,7 @@ namespace IDL4_EA_Extension
     [ComVisible(true)]
     public class Main
     {
-        private const String IDL_GENERATOR_REVISION = "1.21";
+        private const String IDL_GENERATOR_REVISION = "1.22";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -508,7 +508,7 @@ namespace IDL4_EA_Extension
                 // output.OutputTextLine("Displaying Class: " + classElem.Name);
                 if (IsElementEnum(classElem))
                 {
-                    Main.GenIDL_Enum(repository, classElem, output, elementNames.Length - 1, uncheckedElem, pathToElement);
+                    Main.GenIDL_Enum(repository, classElem, null, output, elementNames.Length - 1);
                 }
                 else if (IsXSDSimpleType(classElem))
                 {
@@ -537,12 +537,16 @@ namespace IDL4_EA_Extension
          */
         private static void GenIDL_PrebuiltUMLTypes(TextOutputInterface output)
         {
-     
+
+            // This list needs to be consistent with the types listed in umlExtensionTypes
             String builtinTypes = 
                 "module " + UML_EXTENSION_MODULE_NAME + " { " + Environment.NewLine +
                 "    // Place the type declarations below" + Environment.NewLine +
                 "    typedef string    " + UNRESOLVED_TYPE_NAME + "; " + Environment.NewLine +
                 "    typedef long long dateTime;" + Environment.NewLine +
+                "    typedef long long date;" + Environment.NewLine +
+                "    typedef long long token;" + Environment.NewLine +
+                "    typedef long long NMTOKEN;" + Environment.NewLine +
                 "};";
 
             // Uncomment the lines below types are added to UML_Extension
@@ -894,7 +898,7 @@ namespace IDL4_EA_Extension
 
                 if (IsElementEnum(e))
                 {
-                    GenIDL_Enum(repository, e, output, depth + 1, uncheckedElem, packageFullName);
+                    GenIDL_Enum(repository, e, null, output, depth + 1);
                     //if (completionDB != null ) {
                         completionDB.AddGeneratedClass(e);
                     //}
@@ -938,7 +942,7 @@ namespace IDL4_EA_Extension
                 }
             }
 
-            // Generate typedef for XSDsimpleElement that appear nested within a class
+            // Generate typedef for types that appear nested within a class
             foreach (Element e in package.Elements)
             {
                 bool generatedElements = false;
@@ -1145,37 +1149,43 @@ namespace IDL4_EA_Extension
         /* Generate the IDL for a nested element
          * This happens for example when we convert from an XSD that has elements defined inline as simple types
          */
-        private static bool GenIDL_NestedElements(Repository repository, Element classElem, TextOutputInterface output, int depth)
+        private static int GenIDL_NestedElements(Repository repository, Element classElem,
+            bool generateCaseStatement, int startingCaseIndex,
+            TextOutputInterface output, int depth)
         {
-            bool generatedElements = false;
-
-            if (classElem.Elements.Count == 0)
-            {
-                return false;
-            }
+            int memberCount = 0;
 
             // So far we only need to generate members  nested elements for XSD unions. Other types have explicit attributes
             // for each member and the nested elements only represent embedded type declarations which we already handles
             // generating typedef. See GehIDL_NestedSimpleElementTypedefs()
             if ( !IsXSDUnion(classElem) )
             {
-                return false;
+                return memberCount;
+            }
+
+            if (classElem.Elements.Count == 0)
+            {
+                return memberCount;
             }
 
             String parentName = classElem.Name;
             foreach (Element child in classElem.Elements)
             {
+                ++memberCount;
                 if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
                 {
                     output.OutputTextLine(depth, "// Generating member because of nested element");
                 }
-                String typeName = GenIDL_GetTypeOfXSDSimpleType(repository, child, parentName, output, depth);
-                output.OutputTextLine(depth, typeName + "  " + child.Name + ";");
 
-                generatedElements = true;
+                if ( generateCaseStatement )
+                {
+                    output.OutputTextLine(depth-1, "case " + (int)(startingCaseIndex + memberCount) + ":");
+                }
+                String typeName = IDL_CrateTypenameForNestedMember(parentName, child.Name);
+                output.OutputTextLine(depth, typeName + "  " + child.Name + ";");
             }
 
-            return generatedElements;
+            return memberCount;
         }
 
         /* Generate a typedef for each nested XSDsimpleElement that is declared in-line within a type
@@ -1195,26 +1205,41 @@ namespace IDL4_EA_Extension
             String parentName = classElem.Name;
             foreach (Element child in classElem.Elements)
             {
-                if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                if (IsElementEnum(child))
                 {
-                    output.OutputTextLine(depth + 1, "// Generating typedef because nested element defines a XSDsimpleType");
-                }
-                String baseClassifierName  = GenIDL_GetTypeOfXSDSimpleType(repository, child, parentName, output, depth);
-                String classifierName = parentName + "_" + child.Name;
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth + 1, "// Generating enum element nested within " + parentName);
+                    }
+                    GenIDL_Enum(repository, child, parentName, output, depth+1);
 
-                // Check if it is one of the builtin types
-                String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassifierName);
-                if (typeDeclaration == null)
-                {
-                    typeDeclaration = "typedef " + baseClassifierName + " " + classifierName + ";";
-                }
-                output.OutputTextLine(depth + 1, typeDeclaration);
 
-                // if (completionDB != null) {
                     completionDB.AddGeneratedClass(child);
-                // }
+                    generatedElements = true;
+                }
+                else
+                {
+                    if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+                    {
+                        output.OutputTextLine(depth + 1, "// Generating typedef element nested within " + parentName + " defines a XSDsimpleType");
+                    }
+                    String baseClassifierName = GenIDL_GetTypeOfXSDSimpleType(repository, child, parentName, output, depth);
+                    String classifierName = IDL_CrateTypenameForNestedMember(parentName , child.Name);
 
-                generatedElements = true;
+                    // Check if it is one of the builtin types
+                    String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassifierName);
+                    if (typeDeclaration == null)
+                    {
+                        typeDeclaration = "typedef " + baseClassifierName + " " + classifierName + ";";
+                    }
+                    output.OutputTextLine(depth + 1, typeDeclaration);
+
+                    // if (completionDB != null) {
+                    completionDB.AddGeneratedClass(child);
+                    // }
+
+                    generatedElements = true;
+                }
             }
            
             return generatedElements;
@@ -1231,24 +1256,28 @@ namespace IDL4_EA_Extension
          *    LowerBound  < UpperBound  (other values)    ==>  Bounded Sequence
          *    LowerBound == UpperBound  (other values)    == > Array
          *
-         * returns true if it outputs some attribute; otherwise returns false
+         * returns the number of attributes outputted. So 0 if not attributes were generated
          */
-        private static bool GenIDL_Attributes(Repository repository, Element classElem, TextOutputInterface output, int depth)
+        private static int GenIDL_Attributes(Repository repository, Element classElem, 
+            bool generateCaseStatement, int startingCaseIndex,
+            TextOutputInterface output, int depth)
         {
+            int memberCount = 0;
+
             if (classElem.Attributes.Count == 0)
             {
-                return false;
+                return memberCount;
             }
 
             // These need to be handled specially
             bool isXSDattributeGroup = IsXSDAttributeGroup(classElem);
-            int memberIndex = 0;
 
             foreach (EA.Attribute child in classElem.Attributes)
             {
                 // This does not get the fully qualified type name. We need that to fully resolve
                 // the type in the IDL...
                 String typeName;
+                ++memberCount;
 
                 /* This code was trying to get the fully-qualified name but it throws an exception
                  */
@@ -1303,7 +1332,7 @@ namespace IDL4_EA_Extension
                 // this is illigal. As a workaround we append a number to each member name to make it unique.
                 if (isXSDattributeGroup)
                 {
-                    effectiveMemberName += ++memberIndex;
+                    effectiveMemberName += memberCount;
                 }
 
                 if (upper == 0) // Unbounded sequence
@@ -1346,11 +1375,15 @@ namespace IDL4_EA_Extension
                     }
                 }
 
+                if (generateCaseStatement)
+                {
+                    output.OutputTextLine(depth-1, "case " + (int)(startingCaseIndex + memberCount) + ":");
+                }
                 GenIDL_AttributeWithAnnotations(child, effectiveTypeName, effectiveMemberName, extraAnnotation, output, depth);
                 output.OutputTextLine();
             }
 
-            return true;
+            return memberCount;
         }
 
         private static void GenIDL_AttributeWithAnnotations(EA.Attribute child,
@@ -1905,9 +1938,11 @@ namespace IDL4_EA_Extension
 
         //TODO: This should examine the relationship and determine the multiplicity so that
         //      the relationship can be generated as a sequence rather than single reference.
-        private static bool GenIDL_Relations(Repository repository, Element classElem, TextOutputInterface output, int depth)
+        private static int GenIDL_Relations(Repository repository, Element classElem,
+            bool generateCaseStatement, int startingCaseIndex,
+            TextOutputInterface output, int depth)
         {
-            bool generatedRelationship = false;
+            int memberCount = 0;
 
             foreach (EA.Connector conn in classElem.Connectors)
             {
@@ -1917,6 +1952,12 @@ namespace IDL4_EA_Extension
 
                 if (referencedType != null)
                 {
+                    ++memberCount;
+                    if ( generateCaseStatement )
+                    {
+                        output.OutputTextLine(depth-1, "case " + (int)(startingCaseIndex + memberCount) + ":");
+                    }
+
                     if (annotations != null)
                     {
                         if (idlVersion >= IDLVersion.IDL_V410_CONNEXT53)
@@ -1941,11 +1982,10 @@ namespace IDL4_EA_Extension
                     {
                         output.OutputTextLine(depth, referencedType + "  " + refname + ";");
                     }
-                    generatedRelationship = true;
                 }
             }
 
-            return generatedRelationship;
+            return memberCount;
         }
 
         private static String IDL_FullElementName(String elementPath, String elementName)
@@ -2016,11 +2056,15 @@ namespace IDL4_EA_Extension
             return isRelevant;
         }
 
-        private static void GenIDL_Enum(Repository repository, Element enumElem,
-             TextOutputInterface output, int depth,
-             HashSet<String> uncheckedElem, String elementPath)
+        private static void GenIDL_Enum(Repository repository, Element enumElem, String parentName,
+             TextOutputInterface output, int depth)
         {
             String enumNameNormalized = IDL_NormalizeUserDefinedClassifierName(enumElem.Name);
+            if ( parentName != null )
+            {
+                String parentNameNormalized = IDL_NormalizeUserDefinedClassifierName(parentName);
+                enumNameNormalized = IDL_CrateTypenameForNestedMember(parentNameNormalized, enumNameNormalized);
+            }
             output.OutputTextLine(depth,
                 "enum " + enumNameNormalized + " {");
 
@@ -2029,6 +2073,10 @@ namespace IDL4_EA_Extension
             output.OutputTextLine(depth, "};");
         }
 
+        private static String IDL_CrateTypenameForNestedMember(String parentName, String elemName )
+        {
+            return parentName + "_" + elemName;
+        }
 
         private static String GenIDL_GetTypeOfXSDSimpleType(Repository repository, Element elem, String parentName,
              TextOutputInterface output, int depth)
@@ -2299,6 +2347,7 @@ namespace IDL4_EA_Extension
         private static String GetIDL_getBaseClass(Repository repository, Element classElem)
         {
             String baseClassName = null;
+
             if (classElem.BaseClasses.Count > 0)
             {
                 Object obj = classElem.BaseClasses.GetAt(0);
@@ -2312,6 +2361,86 @@ namespace IDL4_EA_Extension
         }
 
         private static void GenIDL_Class(Repository repository, Element classElem,
+            TextOutputInterface output, int depth,
+            HashSet<String> uncheckedElem, String elementPath)
+        {
+            if ( IsXSDUnion(classElem) )
+            {
+                GenIDL_Union(repository, classElem, output, depth, uncheckedElem, elementPath);
+            }
+            else
+            {
+                GenIDL_Struct(repository, classElem, output, depth, uncheckedElem, elementPath);
+            }
+        }
+
+        private static void GenIDL_Union(Repository repository, Element classElem,
+                                          TextOutputInterface output, int depth,
+                                          HashSet<String> uncheckedElem, String elementPath)
+        {
+            String className = IDL_NormalizeUserDefinedClassifierName(classElem.Name);
+
+            // In IDL4 and higher annotations are before the class
+            if (idlVersion >= IDLVersion.IDL_V410_CONNEXT53)
+            {
+                GenIDL_ClassAnnotation(classElem, output, depth);
+            }
+
+            String genLinks = classElem.Genlinks;
+            List<String> baseClassNames = new List<String>();
+
+            String parentIdentifier = "Parent=";
+            int startIndex = 0;
+            int parentBeginIndex = genLinks.IndexOf(parentIdentifier, startIndex);
+            while (parentBeginIndex >= 0)
+            {
+                parentBeginIndex += parentIdentifier.Length;
+                int parentEndIndex = genLinks.IndexOf(";", parentBeginIndex);
+                if (parentEndIndex < 0)
+                {
+                    parentEndIndex = genLinks.Length;
+                }
+
+                baseClassNames.Add(genLinks.Substring(parentBeginIndex, parentEndIndex - parentBeginIndex));
+                startIndex = parentEndIndex;
+                parentBeginIndex = genLinks.IndexOf(parentIdentifier, startIndex);
+            }
+
+            output.OutputText(depth, "union " + className);
+            output.OutputTextLine(" switch (long) {");
+
+            // This is used to keep track of the current value of the case statements
+            // so they can be generated ahead of each member. 
+            int currentMemberCount = 0;
+
+            // Generate members for each "base class" of the union
+            foreach (String s in baseClassNames)
+            {
+                output.OutputTextLine(depth, "case " + (int)(++currentMemberCount) + ":");
+                output.OutputTextLine(depth+1, s + " base_" + (int)(currentMemberCount) + ";");
+            }
+
+            currentMemberCount += GenIDL_Attributes(repository, classElem, true, currentMemberCount, output, depth + 1);
+            currentMemberCount += GenIDL_Relations(repository, classElem, true, currentMemberCount, output, depth + 1);
+            currentMemberCount += GenIDL_NestedElements(repository, classElem, true, currentMemberCount, output, depth + 1);
+
+            if (currentMemberCount == 0)
+            {
+                output.OutputTextLine(depth, "case " + (int)(currentMemberCount) + ":");
+                GenIDL_EmptyClassContent(className, output, depth + 1);
+            }
+            output.OutputText(depth, "};");
+
+            // In IDL35 annotations may appear after the class as a comment
+            if (idlVersion < IDLVersion.IDL_V410_CONNEXT53)
+            {
+                GenIDL_ClassAnnotation(classElem, output, depth);
+            }
+            output.OutputTextLine();
+        }
+
+
+        private static void GenIDL_Struct(Repository repository, Element classElem,
             TextOutputInterface output, int depth,
             HashSet<String> uncheckedElem, String elementPath)
         {
@@ -2336,22 +2465,12 @@ namespace IDL4_EA_Extension
             }
             output.OutputTextLine(" {");
 
-            bool emptyClassContent = true;
-            if (GenIDL_Attributes(repository, classElem, output, depth + 1))
-            {
-                emptyClassContent = false;
-            }
-            if (GenIDL_Relations(repository, classElem, output, depth + 1))
-            {
-                emptyClassContent = false;
-            }
-            
-            if (GenIDL_NestedElements(repository, classElem, output, depth + 1))
-            {
-                emptyClassContent = false;
-            }
+            int currentMemberCount = 0;
+            currentMemberCount += GenIDL_Attributes(repository, classElem, false, -1, output, depth + 1);
+            currentMemberCount += GenIDL_Relations(repository, classElem, false, -1, output, depth + 1);
+            currentMemberCount += GenIDL_NestedElements(repository, classElem, false, -1, output, depth + 1);
 
-            if (emptyClassContent)
+            if (currentMemberCount == 0)
             {
                 GenIDL_EmptyClassContent(className, output, depth + 1);
             }
@@ -2487,8 +2606,7 @@ namespace IDL4_EA_Extension
         }
 
         // This list needs to be consistent with the types generated by GenIDL_PrebuiltUMLTypes
-        // The list is now empty. Used to contain dateTime but we are now mapping to string.
-        private static readonly string[] umlExtensionTypes = new string[] { "dateTime" };
+        private static readonly string[] umlExtensionTypes = new string[] { "dateTime", "date", "token", "NMTOKEN"};
 
         /** Normalizes a type name converting it into a legal IDL4  type.
          *
