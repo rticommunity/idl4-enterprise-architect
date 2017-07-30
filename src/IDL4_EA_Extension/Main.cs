@@ -233,7 +233,7 @@ namespace IDL4_EA_Extension
     [ComVisible(true)]
     public class Main
     {
-        private const String IDL_GENERATOR_REVISION = "1.22";
+        private const String IDL_GENERATOR_REVISION = "1.23";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -545,8 +545,8 @@ namespace IDL4_EA_Extension
                 "    typedef string    " + UNRESOLVED_TYPE_NAME + "; " + Environment.NewLine +
                 "    typedef long long dateTime;" + Environment.NewLine +
                 "    typedef long long date;" + Environment.NewLine +
-                "    typedef long long token;" + Environment.NewLine +
-                "    typedef long long NMTOKEN;" + Environment.NewLine +
+                "    typedef string token;" + Environment.NewLine +
+                "    typedef string NMTOKEN;" + Environment.NewLine +
                 "};";
 
             // Uncomment the lines below types are added to UML_Extension
@@ -757,27 +757,32 @@ namespace IDL4_EA_Extension
         private static readonly string[] xsd_longTypes = new string[] { "long", "int", "integer", "negativeInteger", "nonPositiveInteger" };
         private static readonly string[] xsd_ulongTypes = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
         private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
-        private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte" };
-        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
+        private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte", "hexBinary" };
+        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "base64Binary" };
+        //private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
 
         private static readonly string[][] xsd_primtiveTypeVariations = {
                 xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
         };
 
         // These are some types that we hardcode based on their name and their base-class name
-        private static readonly string[] xsd_builtinOctet2TypesTypedef = new string[] { "typedef octet HexBinary16[2]", "HexBinary16", "hexBinary"};
+        /*  TODO: This may be obsolete
+        private static readonly string[] xsd_builtinOctet2TypesTypedef = new string[] { "typedef octet HexBinary16[2]", "HexBinary16", "hexBinary" };
         private static readonly string[][] xsd_builtinTypedefs = {
                 xsd_builtinOctet2TypesTypedef
         };
+        */
 
         private static String IDL_NormalizeXSDbuiltinTypes(String  typeName)
         {
             return IDL_NormalizeMemberTypeNameClassiffiedID0(typeName);
         }
 
-        private static String IDL_XSDbuiltin2IDLdeclaration(String classifierName, String baseClassifierName)
+        private static String IDL_XSDbuiltin2IDLType(String classifierName, String baseClassifierName)
         {
             // First check if it is one of the well-known builtin types
+            
+            /* TODO: This may be obsolete
             for (int typeFamily = 0; typeFamily < xsd_builtinTypedefs.GetLength(0); ++typeFamily)
             {
                 if (xsd_builtinTypedefs[typeFamily][1].Equals(classifierName) 
@@ -787,13 +792,14 @@ namespace IDL4_EA_Extension
                 }
 
             }
+            */
 
             // These we determine based only on the base classifier name
             for (int typeFamily = 0; typeFamily < xsd_primtiveTypeVariations.GetLength(0); ++typeFamily)
             {
                 if (xsd_primtiveTypeVariations[typeFamily].Contains(baseClassifierName))
                 {
-                    return  "typedef " + xsd_primtiveTypeVariations[typeFamily][0] + " " + classifierName + ";";
+                    return  xsd_primtiveTypeVariations[typeFamily][0];
                 }
             }
             return null;
@@ -1227,12 +1233,18 @@ namespace IDL4_EA_Extension
                     String classifierName = IDL_CrateTypenameForNestedMember(parentName , child.Name);
 
                     // Check if it is one of the builtin types
-                    String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassifierName);
-                    if (typeDeclaration == null)
+                    // Resolve if there is a length associated so it should be mapped to an array or sequence.
+                    int minLength, maxLength;
+                    GenIDL_GetXSDBaseMultiplicity(child, out minLength, out maxLength, output, depth);
+
+                    String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(classifierName, baseClassifierName);
+                    if (resolvedBaseClassName == null)
                     {
-                        typeDeclaration = "typedef " + baseClassifierName + " " + classifierName + ";";
+                        resolvedBaseClassName = baseClassifierName;
                     }
-                    output.OutputTextLine(depth + 1, typeDeclaration);
+
+                    string typedefDeclaration = IDL_BuildTypedef(classifierName, resolvedBaseClassName, minLength, maxLength);
+                    output.OutputTextLine(depth + 1, typedefDeclaration);
 
                     // if (completionDB != null) {
                     completionDB.AddGeneratedClass(child);
@@ -2095,6 +2107,74 @@ namespace IDL4_EA_Extension
             return baseClassName;
         }
 
+        private static void GenIDL_GetXSDBaseMultiplicity(Element elem, out int minLength, out int maxLength,
+            TextOutputInterface output, int depth)
+        {
+            // Use -1 as sentinel to recognize the values are not set via tags
+            minLength = -1;
+            maxLength = -1;
+            foreach (TaggedValue tag in elem.TaggedValues)
+            {
+                String normalizedAnnotation = IDL_NormalizeAnnotationName(tag.Name);
+
+                // Accept the TagName DDS as an alternative way to provide an accepted no value annotation
+                // So {Tag, Value} = {"DDS", "XYZ"} is equivalent to {"XYZ", }
+                try
+                {
+                    if (tag.Name.Equals("minLength") && (!tag.Value.Equals("")) )
+                    {
+                        minLength = Int32.Parse(tag.Value);
+                    }
+                    else if (tag.Name.Equals("maxLength") && (!tag.Value.Equals("")))
+                    {
+                        maxLength = Int32.Parse(tag.Value); ;
+                    }
+                    else if (tag.Name.Equals("length") && (!tag.Value.Equals("")))
+                    {
+                        minLength = Int32.Parse(tag.Value);
+                        maxLength = minLength;
+                    }
+                }
+                catch (FormatException)
+                {
+                    output.OutputTextLine(depth, "/* Error parsing integer value assiciated with Tag name=\"" 
+                        + tag.Name + "\" , value=\"" + tag.Value + "\" for element \"" + elem.Name + "\" */");
+                }
+            }
+           
+            if ( (minLength == -1) && (maxLength == -1) )
+            {
+                minLength = 0;
+                maxLength = 0;
+                return;
+            }
+            else if ( minLength == -1 )
+            {
+                minLength = maxLength;
+            }
+            else if (maxLength == -1)
+            {
+                maxLength = minLength;
+            }
+
+            // Now we set both minLength and maxLength from values specified in tags
+            // Negative length valuesdo not make sense
+            if ((minLength < 0) || (maxLength < 0))
+            {
+                output.OutputTextLine(depth, "/* Error lengths cannot be negative: minLength = " + minLength + " maxLength = " + maxLength
+                    + " for element \"" + elem.Name + "\" */");
+                minLength = 0;
+                maxLength = 0;
+            }
+
+            // Ensure min < max
+            if ( minLength > maxLength)
+            {
+                output.OutputTextLine(depth, "/* Error minLength = " + minLength + " is larger than maxLength = " + maxLength 
+                    + " for element \"" + elem.Name + "\" */");
+                minLength = maxLength;
+            }
+        }
 
         private static void GenIDL_XSDSimpleType(Repository repository, Element elem, String parentName,
              TextOutputInterface output, int depth)
@@ -2118,19 +2198,40 @@ namespace IDL4_EA_Extension
             {
                 classifierName = parentName + "_" + classifierName;
             }
-     
-            String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
-            if (typeDeclaration != null)
+
+            // Resolve if there is a length associated so it should be mapped to an array or sequence.
+            int minLength, maxLength;
+            GenIDL_GetXSDBaseMultiplicity(elem, out minLength, out maxLength, output, depth);
+
+            String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(classifierName, baseClassName);
+            if (resolvedBaseClassName == null)
             {
-                output.OutputTextLine(depth, typeDeclaration);
+                resolvedBaseClassName = baseClassName;
+            }
+
+            string typedefDeclaration = IDL_BuildTypedef(classifierName, resolvedBaseClassName, minLength, maxLength);
+            output.OutputTextLine(depth, typedefDeclaration);
+
+        }
+
+        private static String IDL_BuildTypedef(String aliasName, String baseTypeName, int minLength, int maxLength)
+        {
+            if (minLength == maxLength)
+            {
+                if (maxLength == 0)
+                {
+                    return "typedef " + baseTypeName + " " + aliasName + ";";
+                }
+                else
+                {
+                    return "typedef " + baseTypeName + " " + aliasName + "[" + maxLength + "];";
+                }
             }
             else
             {
-                output.OutputTextLine(depth,
-                   "typedef " + baseClassName + "     " + classifierName + ";");
+                return "typedef sequence<" + baseTypeName + "," + maxLength + "> " + aliasName + ";";
             }
         }
-
 
         private static void GenIDL_XSDTopLevelAttribute(Repository repository, Element elem, String parentName,
              TextOutputInterface output, int depth)
@@ -2164,17 +2265,18 @@ namespace IDL4_EA_Extension
                 classifierName = parentName + "_" + classifierName;
             }
 
+            ////
+            int minLength, maxLength;
+            GenIDL_GetXSDBaseMultiplicity(elem, out minLength, out maxLength, output, depth);
 
-            String typeDeclaration = IDL_XSDbuiltin2IDLdeclaration(classifierName, baseClassName);
-            if (typeDeclaration != null)
+            String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(classifierName, baseClassName);
+            if (resolvedBaseClassName == null)
             {
-                output.OutputTextLine(depth, typeDeclaration);
+                resolvedBaseClassName = baseClassName;
             }
-            else
-            {
-                output.OutputTextLine(depth,
-                   "typedef " + baseClassName + "     " + classifierName + ";");
-            }
+
+            string typedefDeclaration = IDL_BuildTypedef(classifierName, resolvedBaseClassName, minLength, maxLength);
+            output.OutputTextLine(depth + 1, typedefDeclaration);
         }
 
         /*
