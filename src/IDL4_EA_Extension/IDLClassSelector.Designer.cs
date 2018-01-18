@@ -38,6 +38,7 @@
             this.idlMappingDetailComboBox = new System.Windows.Forms.ComboBox();
             this.idlVersionComboBox = new System.Windows.Forms.ComboBox();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
+            this.ignoreAggregationNone = new System.Windows.Forms.CheckBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.idlGenConfiguration.SuspendLayout();
             this.SuspendLayout();
@@ -118,12 +119,13 @@
             // idlGenConfiguration
             // 
             this.tableLayoutPanel1.SetColumnSpan(this.idlGenConfiguration, 2);
+            this.idlGenConfiguration.Controls.Add(this.ignoreAggregationNone);
             this.idlGenConfiguration.Controls.Add(this.unresolvedTypeCheckbox);
             this.idlGenConfiguration.Controls.Add(this.idlMappingDetailComboBox);
             this.idlGenConfiguration.Controls.Add(this.idlVersionComboBox);
             this.idlGenConfiguration.Location = new System.Drawing.Point(3, 434);
             this.idlGenConfiguration.Name = "idlGenConfiguration";
-            this.idlGenConfiguration.Size = new System.Drawing.Size(624, 41);
+            this.idlGenConfiguration.Size = new System.Drawing.Size(767, 41);
             this.idlGenConfiguration.TabIndex = 3;
             this.idlGenConfiguration.TabStop = false;
             this.idlGenConfiguration.Text = "Configuration";
@@ -159,6 +161,19 @@
             this.idlVersionComboBox.TabIndex = 0;
             this.idlVersionComboBox.SelectedIndexChanged += new System.EventHandler(this.idlVersion_SelectedIndexChanged);
             // 
+            // ignoreAggregationNone
+            // 
+            this.ignoreAggregationNone.AutoSize = true;
+            this.ignoreAggregationNone.Checked = true;
+            this.ignoreAggregationNone.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.ignoreAggregationNone.Location = new System.Drawing.Point(619, 17);
+            this.ignoreAggregationNone.Name = "ignoreAggregationNone";
+            this.ignoreAggregationNone.Size = new System.Drawing.Size(134, 17);
+            this.ignoreAggregationNone.TabIndex = 3;
+            this.ignoreAggregationNone.Text = "Ignore \"none\" ag. type";
+            this.ignoreAggregationNone.UseVisualStyleBackColor = true;
+            this.ignoreAggregationNone.CheckedChanged += new System.EventHandler(this.ignoreNoneAggregationType_CheckedChanged);
+            // 
             // IDLClassSelector
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -189,5 +204,6 @@
         private System.Windows.Forms.ComboBox idlVersionComboBox;
         private System.Windows.Forms.ComboBox idlMappingDetailComboBox;
         private System.Windows.Forms.CheckBox unresolvedTypeCheckbox;
+        private System.Windows.Forms.CheckBox ignoreAggregationNone;
     }
 }

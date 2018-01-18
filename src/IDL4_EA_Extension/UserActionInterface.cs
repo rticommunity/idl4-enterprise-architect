@@ -32,5 +32,6 @@ namespace IDL4_EA_Extension
         void OnIdlVersionAction(IDLVersion idlVer);
         void OnIdlMappingDetailAction(IDLMappingDetail idlVer);
         void OnUnresolvedTypeOption(bool checkedBox);
+        void OnIgnoreAggregationNoneOption(bool checkedBox);
     }
 }

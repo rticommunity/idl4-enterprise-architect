@@ -105,6 +105,12 @@ namespace IDL4_EA_Extension
             CheckBox cb = (CheckBox)sender;
             _actionInterface.OnUnresolvedTypeOption(cb.Checked);
         }
+
+        private void ignoreNoneAggregationType_CheckedChanged(object sender, EventArgs e)
+        {
+            CheckBox cb = (CheckBox)sender;
+            _actionInterface.OnIgnoreAggregationNoneOption(cb.Checked);
+        }
     }
 
     public class IDLVersion
@@ -140,6 +146,7 @@ namespace IDL4_EA_Extension
             new IDLMappingDetail { Name = "IDL Mapping Details - Suppressed", Value = IDLMappingDetail.IDL_DETAILS_NONE };
 
         public static bool defaultInsertPlaceholderForUnderTypeValue = true;
+        public static bool defaultIgnoreAggregationNoneOptionValue   = true;
 
         public List<IDLVersion> getVersionList()
         {
