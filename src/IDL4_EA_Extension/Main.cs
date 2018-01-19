@@ -2250,12 +2250,10 @@ namespace IDL4_EA_Extension
 
             if (baseClassName == null)
             {
-                output.OutputTextLine(depth, "/* GenIDL_GetTypeOfXSDSimpleType GetIDL_getBaseClass elem= " + elem.Name + " */");
                 baseClassName = GetIDL_getBaseClass(repository, elem);
             }
             else
             {
-                output.OutputTextLine(depth, "/* GenIDL_GetTypeOfXSDSimpleType IDL_XSDbuiltin2IDLType baseClassName= " + baseClassName + " */");
                 baseClassName = IDL_XSDbuiltin2IDLType(baseClassName);
             }
 
