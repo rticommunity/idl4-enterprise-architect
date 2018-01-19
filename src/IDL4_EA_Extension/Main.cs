@@ -238,7 +238,7 @@ namespace IDL4_EA_Extension
     [ComVisible(true)]
     public class Main
     {
-        private const String IDL_GENERATOR_REVISION = "1.24";
+        private const String IDL_GENERATOR_REVISION = "1.25";
         private const String MENU_ROOT_RTI_CONNEXT  = "- IDL4  (RTI Connext DDS)";
         private const String MENU_ITEM_GENERATE_IDL = "Generate IDL ...";
 
@@ -776,16 +776,67 @@ namespace IDL4_EA_Extension
             return IsXSDSimpleType(classElem) || IsXSDTopLevelAttribute(classElem);
         }
 
-        //TODO: IDL_XSDprimitive2IDLprimitive should be deprecated. Use IDL_NormalizeMemberTypeName() instead
-        private static readonly string[] xsd_longTypes = new string[] { "long", "int", "integer", "negativeInteger", "nonPositiveInteger" };
-        private static readonly string[] xsd_ulongTypes = new string[] { "unsigned long", "unsignedLong", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
-        private static readonly string[] xsd_ushortTypes    = new string[] { "unsigned short", "unsignedShort" };
-        private static readonly string[] xsd_octetTypes     = new string[] { "octet", "byte", "unsignedByte", "sbyte", "hexBinary" };
-        private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "base64Binary" };
+        //TODO: IDL_XSDprimitive2IDLprimitive should be combined with IDL_NormalizeMemberTypeName() 
+        private static readonly string[] xsd_booleanTypes = new string[] { "boolean", "boolean" };
+        private static readonly string[] xsd_octetTypes   = new string[] { "octet", "byte", "unsignedByte", "sbyte", "hexBinary" };
+
+        private static readonly string[] xsd_shortTypes   = new string[] { "short", "short" };
+        private static readonly string[] xsd_ushortTypes  = new string[] { "unsigned short", "unsignedShort" };
+
+        /* xsd:int is defined as a 32 bit signed int */
+        private static readonly string[] xsd_longTypes = new string[] { "long", "int", "integer", "negativeInteger", "nonPositiveInteger", "decimal" };
+        private static readonly string[] xsd_ulongTypes   = new string[] { "unsigned long", "unsignedInt", "positiveInteger", "nonNegativeInteger" };
+
+        /* xsd:long is defined as extended-precision integer; at least 18 digits are guaranteed so we need a IDL "long long" */
+        private static readonly string[] xsd_longlongTypes = new string[] { "long long", "long" };
+        private static readonly string[] xsd_ulonglongTypes = new string[] { "unsigned long long", "unsignedLong" };
+
+        private static readonly string[] xsd_floatTypes     = new string[] { "float", "float" };
+        private static readonly string[] xsd_doubleTypes    = new string[] { "double", "double" };
+
+        private static readonly string[] xsd_stringTypes = new string[] { "string", "string", "normalizedString", "hexBinary", "base64Binary", "token", "NCName", "NMTOKEN" };
         //private static readonly string[] xsd_stringTypes = new string[] { "string", "normalizedString", "hexBinary", "base64Binary" };
 
         private static readonly string[][] xsd_primtiveTypeVariations = {
-                xsd_longTypes, xsd_ulongTypes, xsd_ushortTypes, xsd_octetTypes, xsd_stringTypes
+                xsd_booleanTypes, 
+                xsd_octetTypes, xsd_shortTypes, xsd_ushortTypes,
+                xsd_longTypes, xsd_ulongTypes, 
+                xsd_longlongTypes, xsd_ulonglongTypes, 
+                xsd_floatTypes, xsd_doubleTypes,
+                xsd_stringTypes
+        };
+
+        /* For UML peinitive types see: http://www.omg.org/spec/UML/20131001/PrimitiveTypes.xmi */
+        private static readonly string[] boolTypes  = xsd_booleanTypes.Concat( new string[] { "Boolean", "bool" }).ToArray();
+        private static readonly string[] octetTypes = xsd_octetTypes.Concat(   new string[] { "int8", "int8_t", "uint8", "uint8_t" }).ToArray();
+
+        private static readonly string[] shortTypes = xsd_shortTypes.Concat(   new string[] { "int16", "int16_t" }).ToArray();
+        private static readonly string[] ushortTypes = xsd_ushortTypes.Concat( new string[] { "ushort", "uint16", "uint16_t" }).ToArray();
+
+        private static readonly string[] longTypes = xsd_longTypes.Concat(new string[]      { "Integer", "int32", "int32_t" }).ToArray();
+        private static readonly string[] ulongTypes = xsd_ulongTypes.Concat(   new string[] { "uint", "uint32", "uint32_t" }).ToArray();
+
+        private static readonly string[] longlongTypes  = xsd_longlongTypes.Concat( new string[] { "UnlimitedNatural", "int64", "int64_t" }).ToArray();
+        private static readonly string[] ulonglongTypes = xsd_ulonglongTypes.Concat(new string[] { "uint64", "uint64_t" }).ToArray();
+
+        private static readonly string[] floatTypes  = xsd_floatTypes.Concat( new string[] { "Real", "float32" }).ToArray();
+        private static readonly string[] doubleTypes = xsd_doubleTypes.Concat(new string[] { "float64" }).ToArray();
+
+        private static readonly string[] stringTypes = xsd_stringTypes.Concat(new string[] { "String" }).ToArray();
+        private static readonly string[] wstringTypes = new string[] { "wstring", "wstring" };
+
+        private static readonly string[] charTypes  = new string[] { "char", "char" };
+        private static readonly string[] wcharTypes = new string[] { "wchar", "wchar", "wchar_t" };
+
+
+        private static readonly string[][] primitiveTypeVariations = {
+            boolTypes, octetTypes, 
+            shortTypes, ushortTypes,
+            longTypes, ulongTypes, 
+            longlongTypes, ulonglongTypes, 
+            floatTypes, doubleTypes, 
+            stringTypes, wstringTypes, 
+            charTypes, wcharTypes 
         };
 
         // These are some types that we hardcode based on their name and their base-class name
@@ -796,37 +847,55 @@ namespace IDL4_EA_Extension
         };
         */
 
-        private static String IDL_NormalizeXSDbuiltinTypes(String  typeName)
+        private static String IDL_XSDbuiltin2IDLType(String xsdClassifierName)
         {
-            return IDL_NormalizeMemberTypeNameClassiffiedID0(typeName);
-        }
-
-        private static String IDL_XSDbuiltin2IDLType(String classifierName, String baseClassifierName)
-        {
-            // First check if it is one of the well-known builtin types
-            
-            /* TODO: This may be obsolete
-            for (int typeFamily = 0; typeFamily < xsd_builtinTypedefs.GetLength(0); ++typeFamily)
-            {
-                if (xsd_builtinTypedefs[typeFamily][1].Equals(classifierName) 
-                    && xsd_builtinTypedefs[typeFamily][2].Equals(baseClassifierName) )
-                {
-                    return xsd_builtinTypedefs[typeFamily][0] + ";";
-                }
-
-            }
-            */
-
             // These we determine based only on the base classifier name
+
+            // First check the builtin types that are generated as extensions
+            if (xsdExtensionBuiltinTypes.Contains(xsdClassifierName))
+            {
+                return UML_EXTENSION_MODULE_NAME + "::" + xsdClassifierName;
+            }
+
+            // Otherwise search among the primitives types
             for (int typeFamily = 0; typeFamily < xsd_primtiveTypeVariations.GetLength(0); ++typeFamily)
             {
-                if (xsd_primtiveTypeVariations[typeFamily].Contains(baseClassifierName))
+                //                if (xsd_primtiveTypeVariations[typeFamily].Contains(xsdClassifierName))
+                if (Array.IndexOf(xsd_primtiveTypeVariations[typeFamily], xsdClassifierName, 1) >= 0)
                 {
                     return  xsd_primtiveTypeVariations[typeFamily][0];
                 }
             }
             return null;
         }
+
+        private static readonly Regex MultipleSpaces = new Regex(@" {2,}", RegexOptions.Compiled);
+
+        /** Normalizes a type name converting it into a legal IDL4  type.
+         *
+         * This function handles common variations of primitive type names. For anything non-primitive
+         * it just calls IDL_NormalizeUserDefinedClassifierName
+         */
+        private static String IDL_NormalizeMemberTypeName(String typeName)
+        {
+           String normalizedType = MultipleSpaces.Replace(typeName, " ");
+            for (int typeFamily = 0; typeFamily < primitiveTypeVariations.GetLength(0); ++typeFamily)
+            {
+                if (Array.IndexOf(primitiveTypeVariations[typeFamily], normalizedType, 1) >= 0)
+                {
+                    return primitiveTypeVariations[typeFamily][0];
+                }
+            }
+
+            if (xsdExtensionBuiltinTypes.Contains(typeName) )
+            {
+                return UML_EXTENSION_MODULE_NAME + "::" + typeName;
+            }
+
+            return IDL_NormalizeUserDefinedClassifierName(normalizedType);
+        }
+
+
 
         /*
          * Extracts the name of the parent from the GenLinks attribute.
@@ -1261,7 +1330,7 @@ namespace IDL4_EA_Extension
                     int minLength, maxLength;
                     GenIDL_GetXSDBaseMultiplicity(child, out minLength, out maxLength, output, depth);
 
-                    String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(classifierName, baseClassifierName);
+                    String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(baseClassifierName);
                     if (resolvedBaseClassName == null)
                     {
                         resolvedBaseClassName = baseClassifierName;
@@ -1370,7 +1439,7 @@ namespace IDL4_EA_Extension
                 /* This code was trying to get the fully-qualified name but it throws an exception
                  */
                 if ( child.ClassifierID == 0 ) {
-                    typeName = IDL_NormalizeMemberTypeNameClassiffiedID0(child.Type);
+                    typeName = IDL_NormalizeMemberTypeNameClassiffierID0(child.Type, output, depth);
                 }
                 else {
                     Element attributeTypeElem = repository.GetElementByID(child.ClassifierID);
@@ -2181,11 +2250,13 @@ namespace IDL4_EA_Extension
 
             if (baseClassName == null)
             {
+                output.OutputTextLine(depth, "/* GenIDL_GetTypeOfXSDSimpleType GetIDL_getBaseClass elem= " + elem.Name + " */");
                 baseClassName = GetIDL_getBaseClass(repository, elem);
             }
             else
             {
-                baseClassName = IDL_NormalizeXSDbuiltinTypes(baseClassName);
+                output.OutputTextLine(depth, "/* GenIDL_GetTypeOfXSDSimpleType IDL_XSDbuiltin2IDLType baseClassName= " + baseClassName + " */");
+                baseClassName = IDL_XSDbuiltin2IDLType(baseClassName);
             }
 
             return baseClassName;
@@ -2262,7 +2333,7 @@ namespace IDL4_EA_Extension
 
         private static void GenIDL_XSDSimpleType(Repository repository, Element elem, String parentName,
              TextOutputInterface output, int depth)
-        {
+        {           
             String baseClassName = GenIDL_GetTypeOfXSDSimpleType(repository, elem, parentName, output, depth);
 
             if (baseClassName == null)
@@ -2287,13 +2358,21 @@ namespace IDL4_EA_Extension
             int minLength, maxLength;
             GenIDL_GetXSDBaseMultiplicity(elem, out minLength, out maxLength, output, depth);
 
-            String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(classifierName, baseClassName);
+            if (idlMappingDetail >= IDLMappingDetail.IDL_DETAILS_FULL)
+            {
+                output.OutputTextLine(depth + 1, 
+                    "// Generating typedef for XSDsimpleType classifier= " + classifierName + " baseClass= " + baseClassName);
+            } 
+            
+            /*
+            String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(baseClassName);
             if (resolvedBaseClassName == null)
             {
                 resolvedBaseClassName = baseClassName;
             }
+            */
 
-            string typedefDeclaration = IDL_BuildTypedef(classifierName, resolvedBaseClassName, minLength, maxLength);
+            string typedefDeclaration = IDL_BuildTypedef(classifierName, baseClassName, minLength, maxLength);
             output.OutputTextLine(depth, typedefDeclaration);
 
         }
@@ -2353,7 +2432,7 @@ namespace IDL4_EA_Extension
             int minLength, maxLength;
             GenIDL_GetXSDBaseMultiplicity(elem, out minLength, out maxLength, output, depth);
 
-            String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(classifierName, baseClassName);
+            String resolvedBaseClassName = IDL_XSDbuiltin2IDLType(baseClassName);
             if (resolvedBaseClassName == null)
             {
                 resolvedBaseClassName = baseClassName;
@@ -2773,50 +2852,8 @@ namespace IDL4_EA_Extension
             return normalizedName;
         }
 
-        private static readonly string[] boolTypes      = new string[] { "boolean", "bool" };
-        private static readonly string[] charTypes      = new string[] { "char" };
-        private static readonly string[] wcharTypes     = new string[] { "wchar", "wchar_t" };
-
-        private static readonly string[] longlongTypes  = new string[] { "long long", "int64", "int64_t" };
-        private static readonly string[] ulonglongTypes = new string[] { "unsigned long long", "uint64", "uint64_t" };
-        private static readonly string[] longTypes      = new string[] { "long", "int", "int32", "int32_t", "integer", "decimal", "unlimitednatural"};
-        private static readonly string[] ulongTypes     = new string[] { "unsigned long", "unsigned int", "ulong", "uint", "uint32", "uint32_t" };
-        private static readonly string[] shortTypes     = new string[] { "short", "int16", "int16_t" };
-        private static readonly string[] ushortTypes    = new string[] { "unsigned short", "ushort", "uint16", "uint16_t" };
-        private static readonly string[] octetTypes     = new string[] { "octet", "byte", "sbyte", "int8", "int8_t", "uint8", "uint8_t" };
-        private static readonly string[] floatTypes     = new string[] { "float", "float32", "number", "real" };
-        private static readonly string[] doubleTypes    = new string[] { "double", "float64" };
-        private static readonly string[] stringTypes    = new string[] { "string", "String" };
-        private static readonly string[] wstringTypes   = new string[] { "wstring" };
-
-        private static readonly string[][] primtiveTypeVariations = {
-            boolTypes, charTypes, wcharTypes, 
-            longlongTypes, ulonglongTypes, longTypes, ulongTypes, shortTypes, ushortTypes, octetTypes, floatTypes, doubleTypes, 
-            stringTypes,  wstringTypes };
-
-        private static readonly Regex MultipleSpaces = new Regex(@" {2,}", RegexOptions.Compiled);
-
-        /** Normalizes a type name converting it into a legal IDL4  type.
-         *
-         * This function handles common variations of primitive type names. For anything non-primitive
-         * it just calls IDL_NormalizeUserDefinedClassifierName
-         */
-        private static String IDL_NormalizeMemberTypeName(String typeName)
-        {
-            String normalizedType = MultipleSpaces.Replace(typeName, " ");
-            for (int typeFamily = 0; typeFamily < primtiveTypeVariations.GetLength(0); ++typeFamily)
-            {
-                if (primtiveTypeVariations[typeFamily].Contains(normalizedType.ToLower()))
-                {
-                    return primtiveTypeVariations[typeFamily][0];
-                }
-            }
-
-            return IDL_NormalizeUserDefinedClassifierName(normalizedType);
-        }
-
         // This list needs to be consistent with the types generated by GenIDL_PrebuiltUMLTypes
-        private static readonly string[] umlExtensionTypes = new string[] { "dateTime", "date", "token", "NMTOKEN"};
+        private static readonly string[] xsdExtensionBuiltinTypes = new string[] { "dateTime", "date", "token", "NMTOKEN"};
 
         /** Normalizes a type name converting it into a legal IDL4  type.
          *
@@ -2824,23 +2861,9 @@ namespace IDL4_EA_Extension
          * TODO: Need to verify whether primitive types always have classifierID=0 in which case
          * IDL_NormalizeMemberTypeName should be rewriten
          */
-        private static String IDL_NormalizeMemberTypeNameClassiffiedID0(String typeName)
+        private static String IDL_NormalizeMemberTypeNameClassiffierID0(String typeName, TextOutputInterface output, int depth)
         {
-            String normalizedType = MultipleSpaces.Replace(typeName, " ");
-            for (int typeFamily = 0; typeFamily < primtiveTypeVariations.GetLength(0); ++typeFamily)
-            {
-                if (primtiveTypeVariations[typeFamily].Contains(normalizedType.ToLower()))
-                {
-                    return primtiveTypeVariations[typeFamily][0];
-                }
-            }
-
-            if (umlExtensionTypes.Contains(typeName) )
-            {
-                return UML_EXTENSION_MODULE_NAME + "::" + typeName;
-            }
-
-            return IDL_NormalizeUserDefinedClassifierName(normalizedType);
+            return IDL_NormalizeMemberTypeName(typeName);
         }
 
         private static readonly string[] keyAnnotation = new string[] { "Key", "key" };
